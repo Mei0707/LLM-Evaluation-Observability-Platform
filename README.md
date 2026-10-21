@@ -56,6 +56,8 @@ Administrators must explicitly allow target hostnames through `EVALSCOPE_TARGET_
 
 Live direct generation, embeddings, and judging use the server's configured OpenAI-compatible URL. Supply `PROVIDER_API_KEY` or an encrypted project credential and enter supported model IDs. Generation, judge, embedding, and application prices are configured separately; blank prices remain unknown. [Chat request format](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) · [Embedding format](https://developers.openai.com/api/reference/resources/embeddings/methods/create).
 
+The [prepared live study](docs/live-study.md) freezes two prompt configurations on 100 evidence-QA cases, with separate generation/judge token limits, protected evidence exports and a later independent-review protocol. Run `.venv/bin/python -m cli.study prepare` to prepare offline. Paid execution requires explicit opt-in and configured models/credentials; no paid calls or human labels were collected during preparation.
+
 ## Collect human review
 
 Create a **Human review** campaign from completed captured runs. In users mode, assign at least two actual reviewers the `reviewer` role and give each a personal token. The API withholds model identity, machine scores, and other labels from reviewers. Each person submits one immutable score/category/rationale per answer. The coordinator sees consensus coverage, reviewer disagreement, and actual judge/human pairs.
@@ -92,7 +94,7 @@ With a local API running:
 
 The last command deliberately exits 1. Codes: **0** success, **1** regression, **2** incomplete execution, inconclusive gate, timeout, or invalid configuration. Gate mode requires a baseline. YAML can reference an existing experiment or frozen dataset/prompt IDs; inline datasets create new snapshots and cannot be compared against different versions. `EVALSCOPE_URL`, `EVALSCOPE_API_TOKEN`, and `EVALSCOPE_PROJECT_ID` configure the client. A client wait timeout does not cancel server-side work.
 
-The [GitHub Actions workflow](.github/workflows/ci.yml) runs SQLite/PostgreSQL/Redis tests, builds the dashboard, tests the application and review workflow, verifies passing/failing gates, and runs the disposable multi-process fault lab. It uses no paid inference. It has been exercised locally but not pushed/run on GitHub during this task.
+The [GitHub Actions workflow](.github/workflows/ci.yml) runs SQLite/PostgreSQL/Redis tests, builds the dashboard, tests the application and review workflow, verifies passing/failing gates, and runs the disposable multi-process fault lab. It uses no paid inference. [Hosted run 39671039135](https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135) passed for commit `42a71f3`: PostgreSQL/Redis 50 passed, browser 3 passed/1 optional HTTPS skip, all eight resilience scenarios passed. See the [verification record](docs/verification.md) for the exact scope and evidence.
 
 ## Monitoring and application SDK
 

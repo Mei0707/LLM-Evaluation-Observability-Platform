@@ -33,12 +33,31 @@ type Item = {
 };
 type Calibration = {
   consensus_case_count: number;
+  consensus_item_count: number;
+  campaign_complete: boolean;
   independent_reviewer_count: number;
   human_corpus_target_met: boolean;
   judge_consensus_pairs: number;
   judge_mean_absolute_error: number | null;
   reviewer_mean_absolute_difference: number | null;
   category_agreement: number | null;
+  category_agreement_by_reviewer_pair: {
+    reviewer_ids: string[];
+    paired_items: number;
+    agreement: number;
+    cohens_kappa: number | null;
+  }[];
+  judge_disagreement_examples: {
+    item_id: string;
+    input: string;
+    reference_answer: string;
+    output: string;
+    judge_score: number;
+    human_median: number;
+    judge_reason: string;
+    reviews: { reviewer_id: string; category: string; rationale: string }[];
+  }[];
+  example_method: string;
   disagreements: {
     item_id: string;
     human_median: number;
@@ -252,6 +271,30 @@ export function ReviewsPage({
                       <strong>{report.data.judge_consensus_pairs}</strong>
                     </div>
                   </div>
+                  <p>
+                    {report.data.consensus_item_count}/{selected.total_items}{" "}
+                    answers reviewed ·{" "}
+                    {report.data.campaign_complete
+                      ? "Campaign complete"
+                      : "Campaign incomplete"}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const url = URL.createObjectURL(
+                        new Blob([JSON.stringify(report.data, null, 2)], {
+                          type: "application/json",
+                        }),
+                      );
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `calibration-${selected.id}.json`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    Download calibration report
+                  </Button>
                   <h3>Disagreements to investigate</h3>
                   {report.data.disagreements.map((d) => (
                     <div className="score-row" key={d.item_id}>
@@ -261,6 +304,44 @@ export function ReviewsPage({
                         · spread {pct(d.reviewer_spread)} · {d.category}
                       </span>
                     </div>
+                  ))}
+                  <h3>Agreement by reviewer pair</h3>
+                  {report.data.category_agreement_by_reviewer_pair.map(
+                    (pair) => (
+                      <p key={pair.reviewer_ids.join("-")}>
+                        {pair.reviewer_ids
+                          .map((id) => id.slice(0, 8))
+                          .join(" / ")}
+                        : {pair.paired_items} answers · agreement{" "}
+                        {pct(pair.agreement)} · Cohen’s κ{" "}
+                        {pair.cohens_kappa?.toFixed(3) ??
+                          "Undefined (no category variation)"}
+                      </p>
+                    ),
+                  )}
+                  <h3>Judge disagreement examples</h3>
+                  <p className="field-help">{report.data.example_method}</p>
+                  {report.data.judge_disagreement_examples.map((example) => (
+                    <details key={example.item_id}>
+                      <summary>
+                        {example.input} · human {pct(example.human_median)} /
+                        judge {pct(example.judge_score)}
+                      </summary>
+                      <p>
+                        <strong>Reference:</strong> {example.reference_answer}
+                      </p>
+                      <p>
+                        <strong>Response:</strong> {example.output}
+                      </p>
+                      <p>
+                        <strong>Judge reasoning:</strong> {example.judge_reason}
+                      </p>
+                      {example.reviews.map((review) => (
+                        <p key={review.reviewer_id}>
+                          <strong>{review.category}:</strong> {review.rationale}
+                        </p>
+                      ))}
+                    </details>
                   ))}
                   <p className="field-help">{report.data.method}</p>
                 </>

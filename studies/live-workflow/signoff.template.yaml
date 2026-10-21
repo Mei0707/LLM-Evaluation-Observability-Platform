@@ -1,0 +1,16 @@
+# Complete only after actual independent human participation. This is not evidence.
+status: pending
+study_snapshot_sha256: null
+campaign_id: null
+coordinator: null
+review_period_utc: null
+reviewers: [] # Actual display names/IDs, participation and independence attestations.
+rubric_version: null
+selected_answers: null
+answers_with_minimum_distinct_reviews: null
+excluded_or_expired_answers: []
+reference_defects: []
+adjudications: [] # Item ID, original labels, disposition, evidence, adjudicator/date.
+confirmed_judge_failures: [] # Actual response, judge rationale, human evidence, failure type.
+limitations: []
+approved_for_publication: false

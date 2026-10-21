@@ -1,6 +1,30 @@
-# Local verification record
+# Verification record
 
-Verified on October 21, 2026. These results describe local execution; the supplied GitHub Actions workflow has not been pushed or run on GitHub.
+Verified on October 21, 2026. Local verification and hosted GitHub execution are recorded separately below. Live-provider and independent-human research remain pending; the user requested offline preparation of [the live study](live-study.md).
+
+## Hosted GitHub Actions
+
+[Run 39671039135](https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135) passed for commit `42a71f3f150b8379899f9573e5aebf294de0c92c` on `main`, triggered by the successful push. It ran October 21, 2026, 20:31:26–20:33:31 UTC. The GitHub API job statuses and full decoded job logs were inspected, rather than inferring success from workflow YAML or local results. [Selected machine-readable evidence](evidence/github-ci-42a71f3.json) records job/step conclusions, log excerpts and artifact identifiers/digests.
+
+| Hosted job | Verified result |
+| --- | --- |
+| [Backend](https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135/job/119468664850) | SQLite: 49 passed, 1 Redis-only skip. PostgreSQL + Redis: 50 passed. Migration round trip passed. |
+| [Dashboard and quality gate](https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135/job/119468664388) | Production build passed. Baseline/candidate gate passed; intentional regression was correctly rejected. Chromium: 3 passed, 1 skipped, in 18.5 seconds. |
+| [Resilience](https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135/job/119468664886) | All eight scenarios passed: 1/3/5 workers, process crash, database disconnect/restart, Redis outage, and cancellation. Zero duplicate logical results in every scenario. |
+
+The skipped hosted browser scenario is the optional HTTPS identity/permission workflow, whose separate secure deployment was not configured in that run. The three executed scenarios cover the main workflow, narrow-screen dashboard, and application/usage/blind-review flow. HTTPS remains locally verified below; it is not claimed as a hosted browser pass.
+
+Hosted resilience wall times: throughput 5.02/2.20/2.20 seconds for 1/3/5 workers; crash 7.31; database disconnect 4.22; database restart 4.17; Redis outage 7.63; cancellation 2.94. These are single hosted measurements with five-second laboratory leases, not production availability guarantees. The run uploaded `evaluation-evidence` and `resilience-evidence`; GitHub reports expiration on January 19, 2027. Downloadable artifacts/full logs are available from the run while retained.
+
+This record applies to the cited commit. Later local study/calibration changes require their own checks and do not inherit a hosted pass from this run.
+
+## Prepared-study follow-up verification
+
+The local study/calibration changes were checked separately: SQLite 56 passed / 1 Redis-only skip; PostgreSQL + Redis 57 passed; production dashboard build passed; Chromium 3 passed / 1 optional HTTPS skip. The browser downloaded the calibration JSON and verified that a single automated label produces neither human consensus nor paired judge evidence. The new integration test uses simulated HTTP generation/judging to exercise both 100-case runs and export 400 request-ledger events; it is explicitly not paid-provider validation. Further checks cover ambiguous dispatch without duplicate launch, frozen-snapshot tampering, separate token ceilings, per-pair kappa, retained disagreement examples, expiry, and the requirement to review both configurations before completing a campaign.
+
+The offline study snapshot was generated under `artifacts/live-study/prepared.json` with placeholder model IDs and no execution state. No paid requests or independent human labels were collected. New source changes remain local until committed/pushed; the hosted pass above proves the earlier cited commit only.
+
+## Local execution
 
 | Check | Evidence |
 | --- | --- |

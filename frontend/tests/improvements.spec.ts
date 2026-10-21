@@ -118,6 +118,22 @@ test("evaluate an HTTP application, inspect all-stage usage, and submit a blind 
   await expect(
     page.getByText(/Human review target still pending/),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Judge disagreement examples",
+      exact: true,
+    }),
+  ).toBeVisible();
+  const downloaded = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download calibration report", exact: true })
+    .click();
+  const reportFile = await downloaded;
+  const report = JSON.parse(readFileSync((await reportFile.path())!, "utf8"));
+  expect(report.campaign_complete).toBe(false);
+  expect(report.consensus_item_count).toBe(0);
+  expect(report.judge_consensus_pairs).toBe(0);
+  expect(report.judge_disagreement_examples).toEqual([]);
 });
 
 test("HTTPS personal identities enforce project membership and reader permissions", async ({

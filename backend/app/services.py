@@ -194,6 +194,7 @@ def compare(session, baseline, candidate):
         "pass_threshold",
         "retrieval_k",
         "judge_model",
+        "judge_max_completion_tokens",
         "embedding_model",
     ]
     if any(

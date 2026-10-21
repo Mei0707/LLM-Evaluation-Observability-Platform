@@ -16,6 +16,7 @@ from backend.app.models import (
     Credential,
     HumanLabel,
     Result,
+    ReviewItem,
     Run,
     Score,
     UsageEvent,
@@ -457,6 +458,130 @@ def test_blind_review_enforces_distinct_reviewers_and_reports_disagreement(
     assert not report["human_corpus_target_met"]
     assert report["reviewer_mean_absolute_difference"] == 0.5
     assert report["disagreements"][0]["category"] == "disputed"
+    assert report["campaign_complete"] and report["consensus_item_count"] == 1
+    assert report["judge_disagreement_examples"] == []
+
+
+def test_calibration_exports_adjudication_examples_kappa_and_honors_retention(
+    secure_client,
+):
+    client = secure_client
+    run = create_run(client, n=2)
+    asyncio.run(drain())
+    with transaction() as session:
+        for result in session.scalars(select(Result).where(Result.run_id == run["id"])):
+            session.add(
+                Score(
+                    result_id=result.id,
+                    evaluator="llm_judge",
+                    version="offline-test",
+                    value=0 if result.case_id == "c-0" else 1,
+                    reason="Deliberately wrong offline judge fixture",
+                    details={},
+                )
+            )
+    a, _ = person(client, "Offline fixture reviewer A", "reviewer")
+    b, _ = person(client, "Offline fixture reviewer B", "reviewer")
+    campaign = client.post(
+        "/api/v1/review-campaigns",
+        json={"name": "Offline calibration fixture", "run_ids": [run["id"]]},
+    ).json()
+    path = "/api/v1/review-campaigns/" + campaign["id"]
+    items = client.get(path + "/queue", headers=a).json()["items"]
+    for item in items:
+        first_case = item["input"] == "Question 0"
+        for headers, score, category in [
+            (a, 1 if first_case else 0, "correct" if first_case else "hallucinated"),
+            (b, 1 if first_case else 0.5, "correct" if first_case else "incomplete"),
+        ]:
+            response = client.post(
+                path + "/items/" + item["id"] + "/labels",
+                headers=headers,
+                json={
+                    "score": score,
+                    "category": category,
+                    "rationale": "Offline rationale for test only",
+                },
+            )
+            assert response.status_code == 201
+    report = client.get(path + "/calibration").json()
+    assert report["consensus_item_count"] == 2 and report["campaign_complete"]
+    assert report["category_agreement_by_reviewer_pair"][0][
+        "cohens_kappa"
+    ] == pytest.approx(1 / 3)
+    assert report["category_agreement_by_reviewer_pair"][0]["paired_items"] == 2
+    # Select the case deterministically; the queue order is intentionally anonymous/random.
+    example = next(
+        e for e in report["judge_disagreement_examples"] if e["case_id"] == "c-0"
+    )
+    assert example["output"] and example["reference_answer"]
+    assert "offline judge" in example["judge_reason"]
+    assert len(example["reviews"]) == 2
+    assert client.get(path + "/calibration", headers=a).status_code == 403
+    with transaction() as session:
+        session.get(Run, run["id"]).finished_at = time.time() - 100 * 86400
+    client.put(
+        "/api/v1/retention",
+        json={"enabled": True, "content_days": 30, "trace_days": 90},
+    )
+    client.post("/api/v1/retention/sweep", json={"dry_run": False})
+    expired = client.get(path + "/calibration").json()
+    assert expired["judge_consensus_pairs"] == 2
+    assert expired["judge_disagreement_examples"] == []
+
+
+def test_review_target_requires_both_configurations_not_just_100_case_ids(
+    secure_client,
+):
+    client = secure_client
+    first = create_run(client, n=100)
+    second = client.post(
+        "/api/v1/runs", json={"experiment_id": first["experiment_id"]}
+    ).json()
+    asyncio.run(drain())
+    _, a = person(client, "Offline target fixture A", "reviewer")
+    _, b = person(client, "Offline target fixture B", "reviewer")
+    campaign = client.post(
+        "/api/v1/review-campaigns",
+        json={
+            "name": "Offline two-configuration target fixture",
+            "run_ids": [first["id"], second["id"]],
+        },
+    ).json()
+
+    def insert_fixture_labels(run_id):
+        with transaction() as session:
+            items = session.scalars(
+                select(ReviewItem)
+                .join(Result, Result.id == ReviewItem.result_id)
+                .where(
+                    ReviewItem.campaign_id == campaign["id"], Result.run_id == run_id
+                )
+            ).all()
+            for item in items:
+                for user in (a, b):
+                    session.add(
+                        HumanLabel(
+                            item_id=item.id,
+                            reviewer_id=user["id"],
+                            score=1,
+                            category="correct",
+                            rationale="Automated fixture, not a real human judgment",
+                        )
+                    )
+
+    insert_fixture_labels(first["id"])
+    path = f"/api/v1/review-campaigns/{campaign['id']}/calibration"
+    report = client.get(path).json()
+    assert report["consensus_case_count"] == 100
+    assert report["consensus_item_count"] == 100
+    assert not report["campaign_complete"] and not report["human_corpus_target_met"]
+    assert report["coverage_by_run"][second["id"]]["consensus_items"] == 0
+    insert_fixture_labels(second["id"])
+    report = client.get(path).json()
+    assert report["consensus_item_count"] == 200 and report["campaign_complete"]
+    assert report["human_corpus_target_met"]
+    assert report["category_agreement_by_reviewer_pair"][0]["cohens_kappa"] is None
 
 
 def test_retention_is_dry_run_by_default_preserves_scores_and_purges_content(client):

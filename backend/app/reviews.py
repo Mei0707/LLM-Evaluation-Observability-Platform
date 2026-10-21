@@ -23,6 +23,17 @@ from .services import columns, require
 router = APIRouter(prefix="/api/v1/review-campaigns")
 
 
+def category_kappa(pairs):
+    """Unweighted Cohen's kappa for one reviewer pair; no pooled-pair inference."""
+    if not pairs:
+        return None
+    left, right = Counter(a for a, _ in pairs), Counter(b for _, b in pairs)
+    count = len(pairs)
+    observed = sum(a == b for a, b in pairs) / count
+    expected = sum(left[c] * right[c] for c in left.keys() | right.keys()) / count**2
+    return (observed - expected) / (1 - expected) if expected < 1 else None
+
+
 def campaign_view(session, campaign, reviewer_id):
     items = session.scalars(
         select(ReviewItem).where(ReviewItem.campaign_id == campaign.id)
@@ -207,7 +218,7 @@ def calibration(
         ):
             grouped[label.item_id].append(label)
         score_map = {
-            s.result_id: s.value
+            s.result_id: s
             for s in session.scalars(
                 select(Score).where(
                     Score.result_id.in_([result.id for _, result in rows]),
@@ -216,16 +227,25 @@ def calibration(
             )
         }
         pair_deltas, category_agreement, judge_deltas, disagreements = [], [], [], []
+        pair_categories, run_coverage = defaultdict(list), defaultdict(Counter)
+        judge_examples = []
+        consensus_items = 0
         consensus_cases, reviewed_ids = set(), set()
         for item, result in rows:
-            labels = grouped[item.id]
+            labels = sorted(grouped[item.id], key=lambda label: label.reviewer_id)
+            run_coverage[result.run_id]["total_items"] += 1
             reviewed_ids.update(label.reviewer_id for label in labels)
             for a, b in combinations(labels, 2):
                 pair_deltas.append(abs(a.score - b.score))
                 category_agreement.append(a.category == b.category)
+                pair_categories[(a.reviewer_id, b.reviewer_id)].append(
+                    (a.category, b.category)
+                )
             if len(labels) < campaign.minimum_reviews:
                 continue
             consensus_cases.add(result.test_case_id)
+            consensus_items += 1
+            run_coverage[result.run_id]["consensus_items"] += 1
             human_score = statistics.median(label.score for label in labels)
             categories = Counter(label.category for label in labels)
             ordered = categories.most_common()
@@ -234,10 +254,43 @@ def calibration(
                 if len(ordered) == 1 or ordered[0][1] > ordered[1][1]
                 else "disputed"
             )
-            judge = score_map.get(result.id)
+            judge_record = score_map.get(result.id)
+            judge = judge_record.value if judge_record is not None else None
             delta = abs(judge - human_score) if judge is not None else None
             if delta is not None:
                 judge_deltas.append(delta)
+                run_coverage[result.run_id]["judge_consensus_pairs"] += 1
+                if delta > 0.25 and result.output is not None:
+                    case = session.get(TestCase, result.test_case_id)
+                    judge_examples.append(
+                        {
+                            "item_id": item.id,
+                            "case_id": result.case_id,
+                            "input": case.data["input"],
+                            "reference_answer": case.data["reference_answer"],
+                            "reference_contexts": case.data["reference_contexts"],
+                            "retrieved_contexts": result.evidence.get("contexts", []),
+                            "output": result.output,
+                            "human_median": human_score,
+                            "judge_score": judge,
+                            "judge_reason": judge_record.reason,
+                            "absolute_judge_delta": delta,
+                            "direction": (
+                                "over_scoring"
+                                if judge > human_score
+                                else "under_scoring"
+                            ),
+                            "reviews": [
+                                {
+                                    "reviewer_id": label.reviewer_id,
+                                    "score": label.score,
+                                    "category": label.category,
+                                    "rationale": label.rationale,
+                                }
+                                for label in labels
+                            ],
+                        }
+                    )
             spread = max(label.score for label in labels) - min(
                 label.score for label in labels
             )
@@ -262,9 +315,24 @@ def calibration(
         return {
             "campaign": campaign_view(session, campaign, principal(request)["id"]),
             "consensus_case_count": len(consensus_cases),
+            "consensus_item_count": consensus_items,
+            "campaign_complete": bool(rows) and consensus_items == len(rows),
+            "coverage_by_run": {
+                run_id: {
+                    key: counts[key]
+                    for key in (
+                        "total_items",
+                        "consensus_items",
+                        "judge_consensus_pairs",
+                    )
+                }
+                for run_id, counts in run_coverage.items()
+            },
             "independent_reviewer_count": len(reviewed_ids),
             "human_corpus_target_met": len(consensus_cases) >= 100
-            and len(reviewed_ids) >= 2,
+            and len(reviewed_ids) >= 2
+            and consensus_items == len(rows),
+            "independence_status": "Distinct accounts are verified; human independence requires coordinator attestation.",
             "reviewer_pair_count": len(pair_deltas),
             "reviewer_mean_absolute_difference": (
                 statistics.mean(pair_deltas) if pair_deltas else None
@@ -272,6 +340,15 @@ def calibration(
             "category_agreement": (
                 statistics.mean(category_agreement) if category_agreement else None
             ),
+            "category_agreement_by_reviewer_pair": [
+                {
+                    "reviewer_ids": list(pair),
+                    "paired_items": len(categories),
+                    "agreement": statistics.mean(a == b for a, b in categories),
+                    "cohens_kappa": category_kappa(categories),
+                }
+                for pair, categories in sorted(pair_categories.items())
+            ],
             "judge_consensus_pairs": len(judge_deltas),
             "judge_mean_absolute_error": (
                 statistics.mean(judge_deltas) if judge_deltas else None
@@ -286,5 +363,11 @@ def calibration(
                 key=lambda d: max(d["absolute_judge_delta"] or 0, d["reviewer_spread"]),
                 reverse=True,
             ),
+            "judge_disagreement_examples": sorted(
+                judge_examples,
+                key=lambda example: example["absolute_judge_delta"],
+                reverse=True,
+            )[:10],
+            "example_method": "Up to ten largest judge/human gaps > .25 with retained content. These are candidates for human adjudication, not automatically confirmed judge failures. Expired content is excluded.",
             "method": "Explicit authenticated reviewers only; per-item median after the minimum distinct reviews. Pairwise reviewer differences and category agreement are descriptive; repeated reviewers/cases are not independent statistical samples.",
         }

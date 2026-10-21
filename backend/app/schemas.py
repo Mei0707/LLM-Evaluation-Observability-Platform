@@ -77,6 +77,8 @@ class RunConfig(StrictModel):
     provider_credential_id: str | None = None
     model: str = Field(default="mock-balanced", min_length=1, max_length=120)
     temperature: float = Field(default=0, ge=0, le=2)
+    max_completion_tokens: int | None = Field(default=None, ge=1, le=32768)
+    judge_max_completion_tokens: int | None = Field(default=None, ge=1, le=32768)
     evaluators: list[Evaluator] = Field(
         default_factory=lambda: ["exact_match"], min_length=1, max_length=4
     )

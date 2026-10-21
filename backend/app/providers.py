@@ -190,6 +190,11 @@ class Provider:
                 "model": config["model"],
                 "temperature": config["temperature"],
                 "messages": [{"role": "user", "content": prompt}],
+                **(
+                    {"max_completion_tokens": config["max_completion_tokens"]}
+                    if config.get("max_completion_tokens") is not None
+                    else {}
+                ),
             },
             scope="generation",
             config=config,
@@ -281,6 +286,11 @@ class Provider:
                 "model": config["judge_model"],
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
+                **(
+                    {"max_completion_tokens": config["judge_max_completion_tokens"]}
+                    if config.get("judge_max_completion_tokens") is not None
+                    else {}
+                ),
                 "messages": [
                     {"role": "system", "content": JUDGE_RUBRIC},
                     {"role": "user", "content": json.dumps(data)},

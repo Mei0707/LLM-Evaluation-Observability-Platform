@@ -11,10 +11,16 @@ The coordinator's report includes:
 - Distinct cases meeting the minimum reviewer count, and whether 100 cases have reached that threshold.
 - Distinct attributed reviewer accounts and pairwise mean absolute score differences.
 - Pairwise category agreement, including explicit disputed categories when votes tie.
+- Per-reviewer-pair unweighted Cohen's kappa (null when undefined), with paired-answer counts.
 - Per-item human median, paired judge MAE/agreement within .25, and case-level disagreements sorted by spread or judge divergence.
+- Answer-level and per-run completion coverage, plus up to ten retained judge-disagreement examples with the actual output, reference, judge explanation and attributed human rationales. These are candidates for adjudication, not automatically proven judge failures.
+
+The dashboard can download the coordinator's JSON calibration report. The 100-case target additionally requires the configured minimum reviews on every selected answer: reviewing one configuration's 100 answers does not complete a 200-answer campaign. Numeric calibration survives response expiry, but expired answer text is excluded from examples.
 
 Judge pairs require actual stored `llm_judge` scores and the minimum distinct reviews. A single-review annotation on the legacy case inspector is not independent consensus. Missing judge scores remain missing; they are never synthesized. Reports are descriptive and do not pretend repeated reviewers or related cases are independent samples.
 
 The bundled corpus has 100 unique questions across ten task families, clear provenance, and controlled mock-output perturbations. It is not a human-reviewed benchmark. Automated test labels live in explicitly named E2E fixture campaigns and do not constitute independent human research evidence. Distinct accounts alone cannot prove different humans or independent behavior; reviewer recruitment, blinding discipline, and study sign-off remain human responsibilities.
 
 Response retention can remove material before review. Expired responses leave the queue, and submission against expired content returns 410. Numeric labels remain as evidence; rationale text follows content retention. Store/export a study report only under the applicable retention policy.
+
+The [prepared experiment and human-study protocol](live-study.md) supplies two frozen prompts, an independent reviewer guide, and a coordinator sign-off/adjudication template. It is awaiting model execution and real reviewers; preparation is not research evidence.

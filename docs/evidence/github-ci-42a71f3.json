@@ -1,0 +1,299 @@
+{
+  "source": "GitHub Actions API job summaries and decoded hosted job logs, retrieved through the GitHub connector",
+  "verified_on": "2026-10-21",
+  "repository": "Mei0707/LLM-Evaluation-Observability-Platform",
+  "run_id": 39671039135,
+  "run_url": "https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135",
+  "commit": "42a71f3f150b8379899f9573e5aebf294de0c92c",
+  "event": "push",
+  "attempt": 1,
+  "conclusion": "success",
+  "started_at": "2026-10-21T20:31:26Z",
+  "completed_at": "2026-10-21T20:33:31Z",
+  "jobs": [
+    {
+      "id": 119468664388,
+      "name": "dashboard-and-quality-gate",
+      "conclusion": "success",
+      "url": "https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135/job/119468664388",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run pip install -r requirements.lock && pip install --no-deps -e .",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run npm ci && npm run build && npx playwright install --with-deps chromium",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Start API and worker",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Configure deterministic CI evaluations",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Establish baseline and verify passing candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Verify a regression fails the CLI gate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Browser workflow",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Run actions/upload-artifact@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25
+        }
+      ],
+      "log_excerpts": [
+        "2026-10-21T20:32:44.2213307Z   1 skipped",
+        "2026-10-21T20:32:44.2213687Z   3 passed (18.5s)"
+      ]
+    },
+    {
+      "id": 119468664850,
+      "name": "backend",
+      "conclusion": "success",
+      "url": "https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135/job/119468664850",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Initialize containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run pip install -r requirements.lock && pip install --no-deps -e .",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "SQLite tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "PostgreSQL tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Migration round trip",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15
+        },
+        {
+          "name": "Stop containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        }
+      ],
+      "log_excerpts": [
+        "2026-10-21T20:32:00.2993107Z 49 passed, 1 skipped, 1 warning in 2.95s",
+        "2026-10-21T20:32:14.1034980Z 50 passed, 1 warning in 12.78s"
+      ]
+    },
+    {
+      "id": 119468664886,
+      "name": "resilience",
+      "conclusion": "success",
+      "url": "https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39671039135/job/119468664886",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Build the isolated laboratory image",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Multiple workers and injected dependency failures",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run actions/upload-artifact@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ],
+      "log_excerpts": [
+        "2026-10-21T20:32:36.8780904Z throughput / 1 processes: COMPLETED, 5.02s, duplicates 0",
+        "2026-10-21T20:32:42.0473006Z throughput / 3 processes: COMPLETED, 2.20s, duplicates 0",
+        "2026-10-21T20:32:47.2548312Z throughput / 5 processes: COMPLETED, 2.20s, duplicates 0",
+        "2026-10-21T20:32:57.5607879Z worker-crash / 3 processes: COMPLETED, 7.31s, duplicates 0",
+        "2026-10-21T20:33:04.3102711Z database-disconnect / 3 processes: COMPLETED, 4.22s, duplicates 0",
+        "2026-10-21T20:33:11.0248484Z database-restart / 3 processes: COMPLETED, 4.17s, duplicates 0",
+        "2026-10-21T20:33:21.1797758Z redis-outage / 3 processes: COMPLETED, 7.63s, duplicates 0",
+        "2026-10-21T20:33:26.6643173Z cancel-in-flight / 3 processes: CANCELED, 2.94s, duplicates 0"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12380230947,
+      "name": "evaluation-evidence",
+      "sha256": "d5989e24f05e8a214f16d5dd5feba0e2976d605440770f8b33c65f341f870893",
+      "expires_at": "2027-01-19T20:31:26Z"
+    },
+    {
+      "id": 12378689585,
+      "name": "resilience-evidence",
+      "sha256": "f96e8f779fe6ff25799e7f7d608905b721f5356044214fc1e98ddf3d0d8d1b60",
+      "expires_at": "2027-01-19T20:31:26Z"
+    }
+  ],
+  "limits": [
+    "This proves execution for the cited commit only, not future or uncommitted changes.",
+    "Hosted browser workflow: 3 passed, 1 skipped. The optional HTTPS identity/permissions scenario was not configured in this run.",
+    "No paid inference or independent human research was performed by CI.",
+    "Log excerpts are a selected record; canonical full logs and downloadable artifacts are linked from the hosted run."
+  ]
+}

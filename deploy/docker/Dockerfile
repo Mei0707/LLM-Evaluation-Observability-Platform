@@ -14,6 +14,7 @@ COPY cli/ ./cli/
 COPY evalscope_sdk/ ./evalscope_sdk/
 COPY examples/ ./examples/
 COPY datasets/review/ ./datasets/review/
+COPY studies/ ./studies/
 COPY alembic.ini ./
 COPY --from=frontend /ui/dist ./frontend/dist
 RUN pip install --no-deps . && useradd --create-home --uid 10001 evalscope
