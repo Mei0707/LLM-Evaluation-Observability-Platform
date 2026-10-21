@@ -1,0 +1,50 @@
+{
+  "purpose": "Two-request smoke test, excluded from the 100-case study metrics",
+  "output": "4",
+  "judge_score": 1.0,
+  "judge_reason": "The answer '4' is correct, relevant, complete, and fully supported for the arithmetic question 'Compute 2 + 2.'",
+  "requests": [
+    {
+      "http_status": 200,
+      "model": "gpt-4.1-mini-2025-04-14",
+      "usage": {
+        "prompt_tokens": 19,
+        "completion_tokens": 1,
+        "total_tokens": 20,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "request_id": "req_5cd651acb9484d2abcea122d063a083a",
+      "finish_reason": "stop"
+    },
+    {
+      "http_status": 200,
+      "model": "gpt-4.1-2025-04-14",
+      "usage": {
+        "prompt_tokens": 106,
+        "completion_tokens": 38,
+        "total_tokens": 144,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "request_id": "req_dd1900c1f9ed4ac1b4e0977b558d05e8",
+      "finish_reason": "stop"
+    }
+  ]
+}

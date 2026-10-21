@@ -1,6 +1,6 @@
 # Prepared live workflow and independent review study
 
-Status on October 21, 2026: prepared for later execution, at the user's request. No paid calls or independent human labels have been collected. The hosted CI results are separate evidence about software execution, not model quality. No model winner, quality difference, human agreement rate, or judge failure is claimed yet.
+The initial preparation was offline, as requested at that stage. A subsequent user-authorized [real OpenAI study](../studies/results/openai-2026-10-21/README.md) completed on October 21, 2026: 200 actual responses and 200 judgments, with quality, latency, tokens, cost and failure evidence published. Independent human labels remain uncollected. The instructions below describe preparation and later execution; the measured report distinguishes original judge scores from post hoc deterministic checks.
 
 ## Frozen experiment
 

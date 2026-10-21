@@ -58,6 +58,8 @@ Live direct generation, embeddings, and judging use the server's configured Open
 
 The [prepared live study](docs/live-study.md) freezes two prompt configurations on 100 evidence-QA cases, with separate generation/judge token limits, protected evidence exports and a later independent-review protocol. Run `.venv/bin/python -m cli.study prepare` to prepare offline. Paid execution requires explicit opt-in and configured models/credentials; no paid calls or human labels were collected during preparation.
 
+**Completed real-provider study:** [OpenAI prompt comparison, October 21, 2026](studies/results/openai-2026-10-21/README.md). EvalScope captured 200 GPT-4.1 mini responses and 200 GPT-4.1 judgments with no API failures. Baseline/candidate mean judge scores were .9850/.9775; generation p95 was 1.086/1.014 seconds; total estimated study cost was $0.1597 including judging. A post hoc calendar/JSON audit found defects the judge missed, so those scores are not human-validated accuracy. Full responses, tokens, costs, request metadata and failure cases are published with integrity hashes.
+
 ## Collect human review
 
 Create a **Human review** campaign from completed captured runs. In users mode, assign at least two actual reviewers the `reviewer` role and give each a personal token. The API withholds model identity, machine scores, and other labels from reviewers. Each person submits one immutable score/category/rationale per answer. The coordinator sees consensus coverage, reviewer disagreement, and actual judge/human pairs.

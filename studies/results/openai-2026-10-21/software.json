@@ -1,0 +1,49 @@
+{
+  "base_commit": "07cdd8dd20465617d1a077a4ed4040dc6e05f928",
+  "worktree_dirty_during_execution": true,
+  "study_specific_changes": "Provider metadata hooks and frozen OpenAI model/price plan; core API, worker, rubric and scoring code unchanged from the base commit. The export audit is post hoc.",
+  "source_sha256": {
+    "backend/app/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "backend/app/api.py": "4d72b73b2d82d51ecc7b0a5f1d4167e25ff1453c39713773caa8be1cb6eeb352",
+    "backend/app/config.py": "81d307daa91ff4a52c60c7ea0b544ea6181d88494e2282b1e037579a46d4e323",
+    "backend/app/db.py": "07aaadd265033dc17a02a76d43ef9f31dd98ceb2b7b1b1fb3e42362f1ad0b0e8",
+    "backend/app/evaluators.py": "b8136bf9a0904df42552a5f9476ef13396705915a2e2d9e4818d0d52316fe62c",
+    "backend/app/management.py": "f48e141c233adb5cb400819ebc89e5bfaa20015a0231e3b5d0f437a13d4890cf",
+    "backend/app/models.py": "1c128bc6ffd0de7656508429f970626cfb61713198e0f40d07bb8d8dd1a75af7",
+    "backend/app/providers.py": "30d5f2923dbe8adba5ba4a7ea124756d242b56b69ca31fdaaf4f8e5ee2d65866",
+    "backend/app/retention.py": "7053992a9dd519016398b743b52e71ec4fa22571337c1fcea03e4b5a1ed04aae",
+    "backend/app/reviews.py": "00ff359a6ed759d6cf9b9a39aab108b7ab890b5c822deefd32ceb76734aa4067",
+    "backend/app/schemas.py": "23c20eaba3eb1491a2e8dcc49695315058846b7bccb3071d99f426f41d1ecc21",
+    "backend/app/security.py": "68a3e77ce06637912ce91beb9d3ce352bd70cdf9d8d3c1e02e86cc5b4c66b8ae",
+    "backend/app/seed.py": "530cf73b392e3efe9a05863b070d4101056d5affe4c19767622df9c9d2c03a46",
+    "backend/app/services.py": "cd638086f7e98d00efc23cad969627ec81c847caaa90e64030440b91ba21f0eb",
+    "backend/app/targets.py": "f18cb9d5391081bb4710af3c729f0b05bcbf891d4137c6b0193a9aa2ad8ad9ad",
+    "backend/app/telemetry.py": "b246d87f1052264034c45296c30bd518f035924a246e66ee6a5a34edd362f084",
+    "backend/app/usage.py": "6d8b5628e3849f2889edec0b719aa750212007f10c22f8c550cfbde84270be5b",
+    "backend/app/worker.py": "3c096781d35aee3d23d9db3f39e1a8772ca706092618228297ecc2b9bec00553",
+    "cli/study.py": "7a33adf46592b8cc9688ca65c606a25dbee56a2f489cd4339083aa33019d8805",
+    "requirements.lock": "3fabdaa8c13801000d5b2914598367f60b6849d0781ebdb97784b85bc94fbd3b",
+    "scripts/export_live_study.py": "7c92b5d35798e770cbb8e702fa7a032790e34ca2fbca7c67a617689511679c1b",
+    "scripts/study_server.py": "37ea10a63e554be0b31e3c82e22f3c5c2413912bc5af06db8b2f689f315a0a72",
+    "studies/live-workflow/openai-2026-10-21.yaml": "2a77b90b55d747df53dd2e6610f4dc5b34fc756a226e68c65c988e4d761f95b4"
+  },
+  "versions": {
+    "httpx": "0.28.1",
+    "fastapi": "0.158.1",
+    "sqlalchemy": "2.0.55",
+    "uvicorn": "0.54.0"
+  },
+  "run_times_local": {
+    "baseline": {
+      "created_at": "2026-10-21T14:23:13.572349-07:00",
+      "started_at": "2026-10-21T14:23:13.712564-07:00",
+      "finished_at": "2026-10-21T14:26:41.593251-07:00"
+    },
+    "candidate": {
+      "created_at": "2026-10-21T14:23:13.588669-07:00",
+      "started_at": "2026-10-21T14:23:13.728714-07:00",
+      "finished_at": "2026-10-21T14:26:42.096129-07:00"
+    }
+  },
+  "source_ci_run": "https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39674621664"
+}

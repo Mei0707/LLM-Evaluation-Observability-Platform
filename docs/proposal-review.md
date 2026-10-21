@@ -30,7 +30,7 @@ The important design gaps were worker ownership after a crash, evaluator compati
 | Exact match | Implemented | Unicode/whitespace normalization tests. |
 | Embedding similarity | Implemented via live adapter | Cosine tests and mock HTTP tests; no paid live-provider verification. |
 | Retrieval precision@K, recall@K, MRR | Implemented for supplied labeled/retrieved IDs | Deduplication, rank, and denominator tests. Running a real retriever is application-owned. |
-| LLM-as-judge | Implemented via live adapter | Malformed/boolean/out-of-range verdict validation, rubric version recorded. No paid live-provider verification. |
+| LLM-as-judge | Implemented and exercised against OpenAI | [100-case, two-prompt study](../studies/results/openai-2026-10-21/README.md): 200 actual generations and 200 judgments; full token/cost/latency evidence. Post hoc arithmetic/format checks exposed judge false acceptances. Independent human calibration remains pending. |
 | Human labels and calibration | Review UI and calibration API implemented | Real independently reviewed dataset and agreement study remain to be collected. |
 | Durable asynchronous runs | Implemented | SQLite and PostgreSQL integration tests. |
 | Retry, timeout, cancellation, recovery | Implemented | Failure injection, stale lease tests, real SIGKILL/restart measurement. |
@@ -55,4 +55,4 @@ The implementation covers the functional local MVP and the high-value additions 
 
 All six requested improvement areas now have executable support: HTTP application integration; a 100-question diverse corpus and blinded multi-reviewer calibration; complete stage/attempt usage accounting with explicit unknowns; isolated multi-process/dependency-failure tests; actual persistence spans with per-attempt history; and personal identities/project roles/encrypted credentials/retention/TLS. [Application contract](applications.md), [human reviews](human-review.md), and [deployment controls](security.md) describe how to use them.
 
-Independent human judgments, paid-provider validation, and a public production rollout are still real-world activities rather than implementation artifacts. No generated fixture or automated test label is represented as having completed those activities.
+The [real-provider study](../studies/results/openai-2026-10-21/README.md) now supplies measured OpenAI generation/judging evidence, with explicit limits and actual failure examples. Independent human judgments, embedding-provider validation and a public production rollout remain outstanding. No generated fixture or automated test label is represented as independent human research.

@@ -23,4 +23,4 @@ The bundled corpus has 100 unique questions across ten task families, clear prov
 
 Response retention can remove material before review. Expired responses leave the queue, and submission against expired content returns 410. Numeric labels remain as evidence; rationale text follows content retention. Store/export a study report only under the applicable retention policy.
 
-The [prepared experiment and human-study protocol](live-study.md) supplies two frozen prompts, an independent reviewer guide, and a coordinator sign-off/adjudication template. It is awaiting model execution and real reviewers; preparation is not research evidence.
+The [experiment and human-study protocol](live-study.md) supplies two frozen prompts, an independent reviewer guide, and a coordinator sign-off/adjudication template. [Real OpenAI model execution is now recorded](../studies/results/openai-2026-10-21/README.md); independent reviewers are still needed. Neither the real model outputs nor the subsequent automated calendar/JSON checks are independent human labels.

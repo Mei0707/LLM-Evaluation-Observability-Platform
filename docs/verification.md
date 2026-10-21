@@ -1,6 +1,12 @@
 # Verification record
 
-Verified on October 21, 2026. Local verification and hosted GitHub execution are recorded separately below. Live-provider and independent-human research remain pending; the user requested offline preparation of [the live study](live-study.md).
+Verified on October 21, 2026. Local verification, hosted GitHub execution and the subsequently completed real-provider study are recorded separately. Independent human research remains pending.
+
+## Real OpenAI execution
+
+The [published 100-case prompt comparison](../studies/results/openai-2026-10-21/README.md) used the existing prepare/execute/collect workflow with actual GPT-4.1 mini generation and GPT-4.1 judging. Both runs completed 100/100 cases: 400 HTTP 200 provider responses, no retries, zero cached tokens and complete reconciled request/token ledgers. Mean judge scores were .9850 baseline and .9775 candidate; generation HTTP p95 was 1.086/1.014 seconds, while evaluation p95 including judging and limiter waits was 4.546/4.587 seconds. The standard-rate cost estimate was $0.1596628 for the study plus $0.0005252 for a disclosed two-request smoke test. Provider invoices were not accessed.
+
+All 200 actual responses, judge reasons, usage events, request metadata and frozen configurations are published. Post hoc calendar/JSON checks reproduced mathematical and format defects missed by the judge, and are reported separately from the unchanged primary scores. No independent human labeling, human agreement or general accuracy guarantee is claimed. Core source commit `07cdd8d` also has a [successful hosted run](https://github.com/Mei0707/LLM-Evaluation-Observability-Platform/actions/runs/39674621664).
 
 ## Hosted GitHub Actions
 
@@ -22,7 +28,7 @@ This record applies to the cited commit. Later local study/calibration changes r
 
 The local study/calibration changes were checked separately: SQLite 56 passed / 1 Redis-only skip; PostgreSQL + Redis 57 passed; production dashboard build passed; Chromium 3 passed / 1 optional HTTPS skip. The browser downloaded the calibration JSON and verified that a single automated label produces neither human consensus nor paired judge evidence. The new integration test uses simulated HTTP generation/judging to exercise both 100-case runs and export 400 request-ledger events; it is explicitly not paid-provider validation. Further checks cover ambiguous dispatch without duplicate launch, frozen-snapshot tampering, separate token ceilings, per-pair kappa, retained disagreement examples, expiry, and the requirement to review both configurations before completing a campaign.
 
-The offline study snapshot was generated under `artifacts/live-study/prepared.json` with placeholder model IDs and no execution state. No paid requests or independent human labels were collected. New source changes remain local until committed/pushed; the hosted pass above proves the earlier cited commit only.
+During the preparation stage, the offline study snapshot was generated under `artifacts/live-study/prepared.json` with placeholder model IDs and no execution state. No paid requests or independent human labels were collected at that stage. The preparation changes were subsequently committed as `07cdd8d`; the real OpenAI execution described above used a separate frozen study directory. Each hosted pass is scoped to its cited commit rather than being inherited by later changes.
 
 ## Local execution
 
@@ -44,7 +50,7 @@ Python 3.11.5, Apple arm64, macOS 26.5.2. Docker used PostgreSQL 16 and Redis 7.
 
 Monitoring verification used host ports 9091 (Prometheus) and 3001 (Grafana) because default local ports were occupied. Application access is http://localhost:8000. Those ports are configurable in Compose.
 
-Not verified: paid live-model calls, independent human/judge calibration research, provider invoices, public deployment, or highly available database failover. Personal-token authorization, trusted HTTPS, one/three/five worker processes, PostgreSQL disconnect/restart, Redis outage, and in-flight cancellation were exercised locally. See the [acceptance matrix](proposal-review.md) and [benchmark limits](benchmarks.md).
+Not verified: independent human/judge calibration research, live embedding-provider calls, provider invoices, public deployment, or highly available database failover. OpenAI generation/judging was exercised in the study above. Personal-token authorization, trusted HTTPS, one/three/five worker processes, PostgreSQL disconnect/restart, Redis outage, and in-flight cancellation were exercised locally. See the [acceptance matrix](proposal-review.md) and [benchmark limits](benchmarks.md).
 
 ## Follow-up checks
 

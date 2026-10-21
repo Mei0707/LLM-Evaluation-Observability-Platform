@@ -1,0 +1,301 @@
+{
+  "study_snapshot_sha256": "3037ca96276511caac787e1925cf9acd7dcdafe90bd18a2e9d2d87f8ba3aea6d",
+  "dataset_sha256": "139276dc12a4c8c87c58f462a073e02a72e8016df7a2e05044709394be996015",
+  "configurations": {
+    "baseline": {
+      "run_id": "d49a2417-a61f-4349-8567-9e790728c89c",
+      "status": "COMPLETED",
+      "metrics": {
+        "total": 100,
+        "completed": 100,
+        "failed": 0,
+        "canceled": 0,
+        "pending": 0,
+        "running": 0,
+        "average_score": 0.985,
+        "pass_rate": 1.0,
+        "coverage": 1.0,
+        "error_rate": 0.0,
+        "p50_latency_ms": 3985.2810414740816,
+        "p95_latency_ms": 4546.474104025401,
+        "input_tokens": 22649,
+        "output_tokens": 6431,
+        "estimated_cost": 0.07857000000000008,
+        "retries": 0
+      },
+      "stages": {
+        "generation": {
+          "model": "gpt-4.1-mini-2025-04-14",
+          "requests": 100,
+          "input_tokens": 7180,
+          "output_tokens": 1045,
+          "cached_input_tokens": 0,
+          "estimated_cost_usd": 0.004543999999999999,
+          "http_p50_ms": 703.7253750022501,
+          "http_p95_ms": 1085.5408315663226,
+          "finish_reasons": {
+            "stop": 100
+          }
+        },
+        "judge": {
+          "model": "gpt-4.1-2025-04-14",
+          "requests": 100,
+          "input_tokens": 15469,
+          "output_tokens": 5386,
+          "cached_input_tokens": 0,
+          "estimated_cost_usd": 0.07402600000000001,
+          "http_p50_ms": 855.8280834695324,
+          "http_p95_ms": 1188.9046332915311,
+          "finish_reasons": {
+            "stop": 100
+          }
+        }
+      },
+      "totals": {
+        "requests": 200,
+        "input_tokens": 22649,
+        "output_tokens": 6431,
+        "cached_input_tokens": 0,
+        "estimated_cost_usd": 0.07857
+      },
+      "ledger_complete": true,
+      "ledger_nominal_cost_usd": 0.07857000000000008,
+      "judge_score_by_tag": {
+        "arithmetic": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "authored-fixture": {
+          "count": 100,
+          "mean": 0.985
+        },
+        "boundary": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "conflicting-versions": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "entity-disambiguation": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "instruction-injection": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "missing-evidence": {
+          "count": 10,
+          "mean": 0.85
+        },
+        "multi-hop": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "structured-output": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "temporal": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "tool-unavailable": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "unreviewed": {
+          "count": 100,
+          "mean": 0.985
+        }
+      },
+      "below_threshold_or_error_cases": 0,
+      "post_hoc_mechanical_checks": {
+        "temporal": {
+          "tested": 10,
+          "passed": 7,
+          "failed_with_judge_full_score": 3
+        },
+        "structured-output": {
+          "tested": 10,
+          "passed": 0,
+          "failed_with_judge_full_score": 10
+        }
+      }
+    },
+    "candidate": {
+      "run_id": "55957ccb-ec01-4638-adb2-c64bb4ec51cd",
+      "status": "COMPLETED",
+      "metrics": {
+        "total": 100,
+        "completed": 100,
+        "failed": 0,
+        "canceled": 0,
+        "pending": 0,
+        "running": 0,
+        "average_score": 0.9775,
+        "pass_rate": 0.99,
+        "coverage": 1.0,
+        "error_rate": 0.0,
+        "p50_latency_ms": 4004.8470415640622,
+        "p95_latency_ms": 4586.676916317083,
+        "input_tokens": 28364,
+        "output_tokens": 6472,
+        "estimated_cost": 0.0810928,
+        "retries": 0
+      },
+      "stages": {
+        "generation": {
+          "model": "gpt-4.1-mini-2025-04-14",
+          "requests": 100,
+          "input_tokens": 12880,
+          "output_tokens": 1063,
+          "cached_input_tokens": 0,
+          "estimated_cost_usd": 0.006852800000000005,
+          "http_p50_ms": 702.9411459807307,
+          "http_p95_ms": 1014.0483567258341,
+          "finish_reasons": {
+            "stop": 100
+          }
+        },
+        "judge": {
+          "model": "gpt-4.1-2025-04-14",
+          "requests": 100,
+          "input_tokens": 15484,
+          "output_tokens": 5409,
+          "cached_input_tokens": 0,
+          "estimated_cost_usd": 0.07423999999999999,
+          "http_p50_ms": 835.1795625640079,
+          "http_p95_ms": 1223.4665130847131,
+          "finish_reasons": {
+            "stop": 100
+          }
+        }
+      },
+      "totals": {
+        "requests": 200,
+        "input_tokens": 28364,
+        "output_tokens": 6472,
+        "cached_input_tokens": 0,
+        "estimated_cost_usd": 0.08109279999999999
+      },
+      "ledger_complete": true,
+      "ledger_nominal_cost_usd": 0.0810928,
+      "judge_score_by_tag": {
+        "arithmetic": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "authored-fixture": {
+          "count": 100,
+          "mean": 0.9775
+        },
+        "boundary": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "conflicting-versions": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "entity-disambiguation": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "instruction-injection": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "missing-evidence": {
+          "count": 10,
+          "mean": 0.85
+        },
+        "multi-hop": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "structured-output": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "temporal": {
+          "count": 10,
+          "mean": 0.925
+        },
+        "tool-unavailable": {
+          "count": 10,
+          "mean": 1.0
+        },
+        "unreviewed": {
+          "count": 100,
+          "mean": 0.9775
+        }
+      },
+      "below_threshold_or_error_cases": 1,
+      "post_hoc_mechanical_checks": {
+        "temporal": {
+          "tested": 10,
+          "passed": 8,
+          "failed_with_judge_full_score": 1
+        },
+        "structured-output": {
+          "tested": 10,
+          "passed": 0,
+          "failed_with_judge_full_score": 10
+        }
+      }
+    }
+  },
+  "mean_score_delta": -0.0075,
+  "case_bootstrap_95_interval": [
+    -0.0225,
+    0.0
+  ],
+  "family_cluster_bootstrap_95_interval": [
+    -0.0225,
+    0.0
+  ],
+  "family_cluster_bootstrap_method": "Resample the ten authored task families with replacement, retaining their paired case deltas; 10000 percentile resamples, seed 42. Exploratory sensitivity analysis, ten clusters and no independent human calibration.",
+  "paired_case_changes": {
+    "improved": 0,
+    "regressed": 1,
+    "unchanged": 99,
+    "missing": 0
+  },
+  "http_status_counts": {
+    "200": 400
+  },
+  "rates_usd_per_million": {
+    "baseline": {
+      "input_cost_per_million": 0.4,
+      "output_cost_per_million": 1.6,
+      "judge_input_cost_per_million": 2.0,
+      "judge_output_cost_per_million": 8.0,
+      "embedding_cost_per_million": null
+    },
+    "candidate": {
+      "input_cost_per_million": 0.4,
+      "output_cost_per_million": 1.6,
+      "judge_input_cost_per_million": 2.0,
+      "judge_output_cost_per_million": 8.0,
+      "embedding_cost_per_million": null
+    }
+  },
+  "cached_input_rates_usd_per_million": {
+    "gpt-4.1-mini-2025-04-14": 0.1,
+    "gpt-4.1-2025-04-14": 0.5
+  },
+  "billing_note": "Standard-rate token-based estimates, accounting for observed cached tokens. Provider invoices, credits, discounts and taxes were not accessed.",
+  "environment": {
+    "python": "3.11.5",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "database": "isolated SQLite WAL",
+    "provider_concurrency": 2,
+    "provider_requests_per_second": 2,
+    "embedded_worker": true
+  },
+  "human_review_status": "NOT_CONDUCTED",
+  "mechanical_check_method": "Post hoc diagnostics on all ten temporal and all ten structured-output cases per configuration, chosen after inspecting outputs. Temporal references are independently recomputed from the question with datetime + timedelta; a single Python-parseable ISO datetime must equal that UTC instant. JSON is parsed directly without stripping Markdown and compared for exact keys, values and field types. These checks do not replace the frozen judge scores or measure overall 100-case accuracy.",
+  "excluded_smoke_estimated_cost_usd": 0.0005252
+}
