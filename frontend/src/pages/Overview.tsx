@@ -151,12 +151,19 @@ export function OverviewPage({
           sub="Across completed evaluations"
         />
         <Stat
-          label="Estimated model cost"
+          label="Known usage estimate"
           value={money(m?.estimated_cost || 0)}
           icon={Coins}
-          sub={`${((m?.input_tokens || 0) + (m?.output_tokens || 0)).toLocaleString()} generation tokens`}
+          sub={`${((m?.input_tokens || 0) + (m?.output_tokens || 0)).toLocaleString()} reported tokens`}
         />
       </div>
+      {data?.usage && !data.usage.complete && (
+        <div className="usage-note">
+          Cost is a known lower bound: some calls have missing usage/prices or
+          predate the ledger. Open a run's usage ledger for the unresolved
+          entries.
+        </div>
+      )}
       <div className="overview-middle">
         <section className="panel trend-panel">
           <div className="panel-header">

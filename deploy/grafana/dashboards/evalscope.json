@@ -158,7 +158,7 @@
     },
     {
       "id": 8,
-      "title": "Generation tokens",
+      "title": "Reported tokens · all stages",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",

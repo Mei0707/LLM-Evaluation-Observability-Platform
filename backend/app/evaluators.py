@@ -64,8 +64,8 @@ def retrieval_metrics(retrieved, relevant, k):
 
 def estimate_cost(input_tokens, output_tokens, config):
     return (
-        input_tokens * config["input_cost_per_million"]
-        + output_tokens * config["output_cost_per_million"]
+        input_tokens * (config.get("input_cost_per_million") or 0)
+        + output_tokens * (config.get("output_cost_per_million") or 0)
     ) / 1_000_000
 
 

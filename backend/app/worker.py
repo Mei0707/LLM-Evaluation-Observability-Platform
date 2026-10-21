@@ -19,6 +19,8 @@ from .evaluators import (
     retrieval_metrics,
 )
 from .services import TERMINAL
+from . import usage
+from .targets import invoke
 from .telemetry import Recorder, CASE_DURATION, LLM_DURATION, WORKER_ACTIVE
 
 log = logging.getLogger("evalscope.worker")
@@ -67,6 +69,7 @@ def claim(config=settings):
                     )
                 )
                 if attempt:
+                    usage.uncertain_attempt(session, attempt.id)
                     attempt.status, attempt.error, attempt.finished_at = (
                         "ABANDONED",
                         "lease_expired",
@@ -117,14 +120,17 @@ def claim(config=settings):
             if not changed:
                 continue
             session.refresh(result)
-            session.add(
-                Attempt(result_id=result.id, number=result.attempts, status="RUNNING")
+            attempt = Attempt(
+                id=uid(), result_id=result.id, number=result.attempts, status="RUNNING"
             )
+            session.add(attempt)
             run.status, run.started_at = "RUNNING", run.started_at or now
             case = session.get(TestCase, result.test_case_id)
             return {
                 "result_id": result.id,
                 "run_id": run.id,
+                "project_id": run.project_id,
+                "attempt_id": attempt.id,
                 "token": token,
                 "attempt": result.attempts,
                 "config": run.config,
@@ -133,120 +139,179 @@ def claim(config=settings):
     return None
 
 
-async def heartbeat(job, config):
+async def heartbeat(job, config, owner=None):
+    deadline = time.time() + config.lease_seconds
     while True:
-        await asyncio.sleep(config.lease_seconds / 3)
+        await asyncio.sleep(min(1, config.lease_seconds / 3))
+        try:
+            with transaction() as session:
+                changed = session.execute(
+                    update(Result)
+                    .where(
+                        Result.id == job["result_id"],
+                        Result.status == "RUNNING",
+                        Result.lease_token == job["token"],
+                        Result.lease_until > time.time(),
+                    )
+                    .values(lease_until=time.time() + config.lease_seconds)
+                ).rowcount
+            if changed:
+                deadline = time.time() + config.lease_seconds
+                continue
+        except Exception:
+            if time.time() < deadline:
+                continue
+        if owner:
+            owner.cancel("ownership_lost")
+        return
+
+
+def persist(job, recorder, output, scores, latency, tokens, error=None, evidence=None):
+    with recorder.span("results.persist"):
         with transaction() as session:
-            changed = session.execute(
-                update(Result)
-                .where(
-                    Result.id == job["result_id"],
-                    Result.status == "RUNNING",
-                    Result.lease_token == job["token"],
-                    Result.lease_until > time.time(),
-                )
-                .values(lease_until=time.time() + config.lease_seconds)
-            ).rowcount
-        if not changed:
-            return
-
-
-def persist(job, recorder, output, scores, latency, tokens, error=None):
-    with transaction() as session:
-        run = session.scalar(
-            select(Run).where(Run.id == job["run_id"]).with_for_update()
-        )
-        result = session.scalar(
-            select(Result).where(Result.id == job["result_id"]).with_for_update()
-        )
-        if (
-            result.lease_token != job["token"]
-            or result.status != "RUNNING"
-            or result.lease_until < time.time()
-            or run.status == "CANCELED"
-        ):
-            return False
-        attempt = session.scalar(
-            select(Attempt).where(
-                Attempt.result_id == result.id, Attempt.number == job["attempt"]
+            run = session.scalar(
+                select(Run).where(Run.id == job["run_id"]).with_for_update()
             )
-        )
-        result.trace_id, result.spans = recorder.trace_id, recorder.spans
-        attempt.finished_at = time.time()
-        if error:
-            attempt.status, attempt.error = "FAILED", error.category
-            result.error = error.category
-            if error.transient and result.attempts < job["config"]["max_attempts"]:
-                result.status = "PENDING"
-                result.available_at = (
-                    time.time()
-                    + min(30, 2 ** (result.attempts - 1))
-                    + random.uniform(0, 0.25)
+            result = session.scalar(
+                select(Result).where(Result.id == job["result_id"]).with_for_update()
+            )
+            if (
+                result.lease_token != job["token"]
+                or result.status != "RUNNING"
+                or result.lease_until < time.time()
+                or run.status == "CANCELED"
+            ):
+                return False
+            attempt = session.scalar(
+                select(Attempt).where(
+                    Attempt.result_id == result.id, Attempt.number == job["attempt"]
                 )
+            )
+            attempt.finished_at = time.time()
+            if error:
+                attempt.status, attempt.error = "FAILED", error.category
+                result.error = error.category
+                if error.transient and result.attempts < job["config"]["max_attempts"]:
+                    result.status = "PENDING"
+                    result.available_at = (
+                        time.time()
+                        + min(30, 2 ** (result.attempts - 1))
+                        + random.uniform(0, 0.25)
+                    )
+                else:
+                    result.status = "FAILED"
             else:
-                result.status = "FAILED"
-        else:
-            result.status, result.error, attempt.status = "COMPLETED", None, "COMPLETED"
-            result.output = output if job["config"]["capture_content"] else None
-            result.score = statistics.mean(score[1] for score in scores)
-            result.passed = result.score >= job["config"]["pass_threshold"]
-            result.latency_ms = latency
-            result.input_tokens, result.output_tokens = tokens
-            result.cost = estimate_cost(*tokens, job["config"])
-            for name, value, reason, details in scores:
-                if name == "llm_judge" and not job["config"]["capture_content"]:
-                    reason = (
-                        "Judge explanation hidden because content capture is disabled."
-                    )
-                session.add(
-                    Score(
-                        result_id=result.id,
-                        evaluator=name,
-                        version=VERSIONS[name],
-                        value=value,
-                        reason=reason,
-                        details=details,
-                    )
+                result.status, result.error, attempt.status = (
+                    "COMPLETED",
+                    None,
+                    "COMPLETED",
                 )
-        result.lease_token = result.lease_until = None
-        session.flush()
-        finalize_run(session, run)
-    return True
+                result.output = output if job["config"]["capture_content"] else None
+                result.evidence = (
+                    (evidence or {}) if job["config"]["capture_content"] else {}
+                )
+                result.score = statistics.mean(score[1] for score in scores)
+                result.passed = result.score >= job["config"]["pass_threshold"]
+                result.latency_ms = latency
+                result.input_tokens, result.output_tokens = tokens
+                result.cost = estimate_cost(*tokens, job["config"])
+                for name, value, reason, details in scores:
+                    if name == "llm_judge" and not job["config"]["capture_content"]:
+                        reason = "Judge explanation hidden because content capture is disabled."
+                    session.add(
+                        Score(
+                            result_id=result.id,
+                            evaluator=name,
+                            version=VERSIONS[name],
+                            value=value,
+                            reason=reason,
+                            details=details,
+                        )
+                    )
+            result.lease_token = result.lease_until = None
+            session.flush()
+            finalize_run(session, run)
+        return True
+
+
+def archive_trace(job, recorder):
+    with transaction() as session:
+        attempt = session.get(Attempt, job["attempt_id"])
+        attempt.trace_id, attempt.spans, attempt.trace_complete = (
+            recorder.trace_id,
+            recorder.spans,
+            True,
+        )
+        result = session.get(Result, job["result_id"])
+        if result.attempts == job["attempt"]:
+            result.trace_id, result.spans = recorder.trace_id, recorder.spans
 
 
 async def execute(job, provider, config=settings):
     recorder = Recorder()
     started, output, scores, tokens, error = time.monotonic(), None, [], (0, 0), None
-    pulse = asyncio.create_task(heartbeat(job, config))
+    owner = asyncio.current_task()
+    pulse = asyncio.create_task(heartbeat(job, config, owner))
     WORKER_ACTIVE.inc()
     try:
-        with recorder.span("evaluation.case", attempt=job["attempt"]):
+        with (
+            recorder.span("evaluation.case", attempt=job["attempt"]) as root,
+            usage.accounting(job),
+        ):
+            with transaction() as session:
+                session.get(Attempt, job["attempt_id"]).trace_id = recorder.trace_id
+                owned = session.execute(
+                    update(Result)
+                    .where(
+                        Result.id == job["result_id"],
+                        Result.status == "RUNNING",
+                        Result.lease_token == job["token"],
+                        Result.lease_until > time.time(),
+                    )
+                    .values(trace_id=recorder.trace_id)
+                ).rowcount
+            if not owned:
+                raise asyncio.CancelledError("ownership_lost")
             try:
                 async with asyncio.timeout(job["config"]["timeout_seconds"]):
                     case, cfg = job["case"], job["config"]
-                    with recorder.span(
-                        "retrieval.references",
-                        document_count=len(case["retrieved_document_ids"]),
-                    ):
-                        retrieved = case["retrieved_document_ids"]
                     with recorder.span("prompt.construct"):
                         prompt = cfg["prompt_template"].format(
                             input=case["input"],
                             contexts="\n".join(case["reference_contexts"]),
                         )
-                    with recorder.span(
-                        "llm.generate", model=cfg["model"], provider=cfg["provider"]
-                    ) as span:
-                        llm_started = time.monotonic()
-                        output, input_tokens, output_tokens = await provider.generate(
-                            cfg, case, prompt, job["attempt"]
+                    if cfg.get("target_snapshot"):
+                        with recorder.span("application.request"):
+                            response = await invoke(job, provider.client, recorder)
+                        output, retrieved = (
+                            response.output,
+                            response.retrieved_document_ids,
                         )
-                        tokens = (input_tokens, output_tokens)
-                        span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
-                        span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
-                        LLM_DURATION.labels(cfg["provider"]).observe(
-                            time.monotonic() - llm_started
-                        )
+                        # Judge groundedness against actual application retrieval.
+                        evaluation_case = {
+                            **case,
+                            "reference_contexts": response.contexts,
+                        }
+                    else:
+                        with recorder.span(
+                            "retrieval.references",
+                            document_count=len(case["retrieved_document_ids"]),
+                        ):
+                            retrieved = case["retrieved_document_ids"]
+                        with recorder.span(
+                            "llm.generate", model=cfg["model"], provider=cfg["provider"]
+                        ) as span:
+                            llm_started = time.monotonic()
+                            output, incoming, outgoing = await provider.generate(
+                                cfg, case, prompt, job["attempt"]
+                            )
+                            tokens = (incoming, outgoing)
+                            span.set_attribute("gen_ai.usage.input_tokens", incoming)
+                            span.set_attribute("gen_ai.usage.output_tokens", outgoing)
+                            LLM_DURATION.labels(cfg["provider"]).observe(
+                                time.monotonic() - llm_started
+                            )
+                        evaluation_case = case
                     with recorder.span("evaluation.score"):
                         for name in cfg["evaluators"]:
                             if name == "exact_match":
@@ -263,34 +328,63 @@ async def execute(job, provider, config=settings):
                                 )
                                 score = cosine_similarity(*embeddings)
                             else:
-                                score = await provider.judge(cfg, output, case)
+                                score = await provider.judge(
+                                    cfg, output, evaluation_case
+                                )
                             scores.append((name, *score))
-            except TimeoutError as exc:
-                raise ProviderError("timeout", True) from exc
-    except ProviderError as exc:
-        error = exc
-    except asyncio.CancelledError:
-        # Shutdown leaves a durable lease for another process to recover.
-        raise
-    except Exception:
-        log.exception("Evaluation failed; request content omitted")
-        error = ProviderError("evaluation_error")
+            except TimeoutError:
+                error = ProviderError("timeout", True)
+            except ProviderError as exc:
+                error = exc
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.warning("Evaluation failed; content omitted")
+                error = ProviderError("evaluation_error")
+            if error:
+                from opentelemetry.trace import Status, StatusCode
+
+                root.set_status(Status(StatusCode.ERROR, error.category))
+                recorder.spans[0].update(status="ERROR", error=error.category)
+            accepted = persist(
+                job,
+                recorder,
+                output,
+                scores,
+                (time.monotonic() - started) * 1000,
+                tokens,
+                error,
+                (
+                    {
+                        "contexts": evaluation_case["reference_contexts"],
+                        "retrieved_document_ids": retrieved,
+                    }
+                    if output is not None and not error
+                    else {}
+                ),
+            )
+            if not accepted:
+                from opentelemetry.trace import Status, StatusCode
+
+                root.set_status(Status(StatusCode.ERROR, "ownership_lost"))
+                recorder.spans[0].update(status="ERROR", error="ownership_lost")
     finally:
         pulse.cancel()
         await asyncio.gather(pulse, return_exceptions=True)
         WORKER_ACTIVE.dec()
         CASE_DURATION.observe(time.monotonic() - started)
-    with recorder.span("results.persist"):
-        pass
-    persist(
-        job,
-        recorder,
-        output,
-        scores,
-        (time.monotonic() - started) * 1000,
-        tokens,
-        error,
-    )
+        # Every attempt keeps its own completed trace, even after retry/cancel.
+        for retry in range(3):
+            try:
+                archive_trace(job, recorder)
+                break
+            except Exception:
+                if retry == 2:
+                    log.warning(
+                        "Trace projection unavailable; OTel export and durable trace ID remain"
+                    )
+                else:
+                    await asyncio.sleep(0.1 * 2**retry)
 
 
 async def serve(stop=None, config=settings):
@@ -302,7 +396,8 @@ async def serve(stop=None, config=settings):
             finished = {task for task in tasks if task.done()}
             for task in finished:
                 try:
-                    task.result()
+                    if not task.cancelled():
+                        task.result()
                 except Exception:
                     log.exception("Worker task failed; lease will expire")
             tasks -= finished

@@ -9,7 +9,7 @@
 
 Per-case quality is the arithmetic mean of the configured evaluator scores. A case passes when quality is at least the frozen threshold. This is a simple, visible weighting choice; selecting exact match and judge together can lower the score of a correct paraphrase. Select evaluators appropriate to the task and compare their details, not only the aggregate.
 
-`pass_rate` divides passed cases by **all dataset cases**, so execution failures and missing cases do not inflate quality. Coverage is successfully evaluated / total cases. Error rate is permanently failed / total cases; canceled cases reduce coverage. Mean quality uses successful scores only, always alongside coverage. Latency percentiles use linear interpolation on successful case wall times, including generation and scoring but excluding queue wait. Generation tokens/cost cover successful generations only; they are incomplete billing estimates.
+`pass_rate` divides passed cases by **all dataset cases**, so execution failures and missing cases do not inflate quality. Coverage is successfully evaluated / total cases. Error rate is permanently failed / total cases; canceled cases reduce coverage. Mean quality uses successful scores only, always alongside coverage. Latency percentiles use linear interpolation on successful case wall times, including generation and scoring but excluding queue wait. The usage ledger covers every recorded generation, embedding, judge, and application stage across attempts, including successful stages preceding later failure. Frozen prices and usage evidence determine known estimates; missing rates, unknown outcomes, and pre-ledger records remain explicit lower-bound gaps.
 
 ## Reproducibility and comparisons
 
@@ -25,6 +25,6 @@ The default requirements are: pass rate ≥ .90, pass-rate drop ≤ .03, p95 ≤
 
 ## Human review and calibration
 
-The provided 100 examples are synthetic authored fixtures. No independent human labels are claimed. A reviewer can inspect a captured response and save a score in [0,1] and an explanation. The calibration endpoint pairs only explicit human scores with `llm_judge` scores; it reports pair count, mean absolute error, and agreement within .25.
+The provided 100 examples are synthetic authored fixtures. No independent human labels are claimed. A reviewer can annotate a captured response; independent consensus instead requires a blinded campaign and the configured minimum distinct authenticated reviewers. See [human-review methodology](human-review.md). The calibration endpoint pairs only explicit human scores with `llm_judge` scores; it reports pair count, mean absolute error, and agreement within .25.
 
 To conduct the proposal's real quality study, independently label at least 100 diverse cases spanning correct, incomplete, hallucinated, and irrelevant answers. Keep reviewers blind to model/judge identity, document the rubric, use multiple reviewers for a subset, resolve disagreements, and hold out calibration cases from prompt tuning. Record corpus provenance, reviewer agreement, model configuration, and case-level judge/human disagreements. This research work remains to be performed.

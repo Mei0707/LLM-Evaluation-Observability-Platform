@@ -6,6 +6,7 @@ frontend/test-results
 frontend/playwright-report
 .git
 .env
+.secrets
 *.db*
 *.pdf
 artifacts

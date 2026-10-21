@@ -1,0 +1,315 @@
+{
+  "environment": {
+    "host": "macOS-26.5.2-arm64-arm-64bit",
+    "database": "PostgreSQL 16",
+    "redis": "Redis 7",
+    "provider": "controlled local HTTP / deterministic mock; no paid inference",
+    "notes": "Disposable Compose project; five slots per worker, five-second renewable leases. Single measurements with other local processes active."
+  },
+  "measurements": [
+    {
+      "scenario": "throughput",
+      "processes": 1,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 100,
+      "status": "COMPLETED",
+      "completed": 100,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 4.9620013360035955,
+      "peak_claimed_cases": 5,
+      "attempts": 100,
+      "abandoned_attempts": 0,
+      "trace_references": 100,
+      "usage": {
+        "calls": 100,
+        "by_scope": {
+          "generation": {
+            "calls": 100,
+            "input_tokens": 200,
+            "output_tokens": 200,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 200,
+        "output_tokens": 200,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "throughput",
+      "processes": 3,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 100,
+      "status": "COMPLETED",
+      "completed": 100,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 2.319442626001546,
+      "peak_claimed_cases": 10,
+      "attempts": 100,
+      "abandoned_attempts": 0,
+      "trace_references": 100,
+      "usage": {
+        "calls": 100,
+        "by_scope": {
+          "generation": {
+            "calls": 100,
+            "input_tokens": 200,
+            "output_tokens": 200,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 200,
+        "output_tokens": 200,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "throughput",
+      "processes": 5,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 100,
+      "status": "COMPLETED",
+      "completed": 100,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 1.905385751000722,
+      "peak_claimed_cases": 13,
+      "attempts": 100,
+      "abandoned_attempts": 0,
+      "trace_references": 100,
+      "usage": {
+        "calls": 100,
+        "by_scope": {
+          "generation": {
+            "calls": 100,
+            "input_tokens": 200,
+            "output_tokens": 200,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 200,
+        "output_tokens": 200,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "worker-crash",
+      "processes": 3,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 30,
+      "status": "COMPLETED",
+      "completed": 30,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 7.397190586998477,
+      "peak_claimed_cases": 23,
+      "attempts": 38,
+      "abandoned_attempts": 8,
+      "trace_references": 38,
+      "usage": {
+        "calls": 38,
+        "by_scope": {
+          "generation": {
+            "calls": 38,
+            "input_tokens": 60,
+            "output_tokens": 60,
+            "known_cost": 0.0,
+            "uncertain_calls": 8,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 60,
+        "output_tokens": 60,
+        "uncertain_calls": 8,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": false,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "database-disconnect",
+      "processes": 3,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 30,
+      "status": "COMPLETED",
+      "completed": 30,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 4.542444960003195,
+      "peak_claimed_cases": 15,
+      "attempts": 30,
+      "abandoned_attempts": 0,
+      "trace_references": 30,
+      "usage": {
+        "calls": 30,
+        "by_scope": {
+          "generation": {
+            "calls": 30,
+            "input_tokens": 60,
+            "output_tokens": 60,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 60,
+        "output_tokens": 60,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "database-restart",
+      "processes": 3,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 30,
+      "status": "COMPLETED",
+      "completed": 30,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 4.502447710001434,
+      "peak_claimed_cases": 15,
+      "attempts": 30,
+      "abandoned_attempts": 0,
+      "trace_references": 30,
+      "usage": {
+        "calls": 30,
+        "by_scope": {
+          "generation": {
+            "calls": 30,
+            "input_tokens": 60,
+            "output_tokens": 60,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 60,
+        "output_tokens": 60,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "redis-outage",
+      "processes": 3,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 30,
+      "status": "COMPLETED",
+      "completed": 30,
+      "canceled": 0,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 8.68760562800162,
+      "peak_claimed_cases": 15,
+      "attempts": 83,
+      "abandoned_attempts": 0,
+      "trace_references": 83,
+      "usage": {
+        "calls": 30,
+        "by_scope": {
+          "generation": {
+            "calls": 30,
+            "input_tokens": 300,
+            "output_tokens": 150,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 300,
+        "output_tokens": 150,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    },
+    {
+      "scenario": "cancel-in-flight",
+      "processes": 3,
+      "slots_per_process": 5,
+      "lease_seconds": 5,
+      "cases": 30,
+      "status": "CANCELED",
+      "completed": 0,
+      "canceled": 30,
+      "failed": 0,
+      "duplicate_logical_results": 0,
+      "wall_seconds": 3.2791106270015007,
+      "peak_claimed_cases": 15,
+      "attempts": 15,
+      "abandoned_attempts": 0,
+      "trace_references": 15,
+      "usage": {
+        "calls": 15,
+        "by_scope": {
+          "generation": {
+            "calls": 15,
+            "input_tokens": 10,
+            "output_tokens": 10,
+            "known_cost": 0.0,
+            "uncertain_calls": 0,
+            "unpriced_calls": 0
+          }
+        },
+        "known_cost": 0,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "uncertain_calls": 0,
+        "unpriced_calls": 0,
+        "legacy_results": 0,
+        "complete": true,
+        "note": "Known cost is a lower bound when calls are pending, uncertain, unreported, unpriced, or predate the ledger. Estimates are not provider invoices."
+      }
+    }
+  ]
+}

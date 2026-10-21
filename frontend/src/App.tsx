@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   ArrowUpRight,
@@ -20,7 +20,13 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { type Overview, type Prompt, type Run, type Workspace } from "./api";
+import {
+  api,
+  type Overview,
+  type Prompt,
+  type Run,
+  type Workspace,
+} from "./api";
 import { useData } from "./hooks/useData";
 import { Empty, ErrorBox, Button } from "./components/ui";
 import { OverviewPage } from "./pages/Overview";
@@ -32,6 +38,8 @@ import { TracesPage, ResultModal } from "./pages/Traces";
 import { ComparisonsPage } from "./pages/Comparisons";
 import { SettingsPage } from "./pages/Settings";
 
+import { ApplicationsPage } from "./pages/Applications";
+import { ReviewsPage } from "./pages/Reviews";
 const navItems: {
   id: string;
   label: string;
@@ -52,6 +60,18 @@ const navItems: {
   },
   { id: "datasets", label: "Datasets", icon: Database, group: "WORKSPACE" },
   { id: "prompts", label: "Prompt library", icon: Layers3, group: "WORKSPACE" },
+  {
+    id: "applications",
+    label: "Applications",
+    icon: FlaskConical,
+    group: "WORKSPACE",
+  },
+  {
+    id: "reviews",
+    label: "Human review",
+    icon: CheckCircle2,
+    group: "OBSERVE & IMPROVE",
+  },
   { id: "traces", label: "Traces", icon: Activity, group: "OBSERVE & IMPROVE" },
   {
     id: "comparisons",
@@ -75,7 +95,21 @@ export function App() {
     [menu, setMenu] = useState(false),
     [toast, setToast] = useState("");
   const workspace = useData<Workspace>("workspace", "/workspace");
-  const overview = useData<Overview>("overview", "/overview", true);
+  const overview = useQuery({
+    queryKey: ["overview"],
+    queryFn: () => api<Overview>("/overview"),
+    refetchInterval: 2000,
+    enabled: !!workspace.data && workspace.data.role !== "reviewer",
+  });
+  useEffect(() => {
+    if (
+      workspace.data?.role === "reviewer" &&
+      !["reviews", "settings"].includes(page)
+    ) {
+      setPage("reviews");
+      location.hash = "reviews";
+    }
+  }, [workspace.data?.role, page]);
   const client = useQueryClient();
   const navigate = (next: string) => {
     setPage(next);
@@ -128,7 +162,7 @@ export function App() {
         >
           <span className="workspace-avatar">A</span>
           <span>
-            <strong>Acme AI</strong>
+            <strong>{workspace.data?.project.name || "Workspace"}</strong>
             <small>Development workspace</small>
           </span>
           <ChevronDown size={15} />
@@ -138,7 +172,11 @@ export function App() {
             <div className="nav-group" key={group}>
               <div className="nav-label">{group}</div>
               {navItems
-                .filter((n) => n.group === group)
+                .filter(
+                  (n) =>
+                    n.group === group &&
+                    (workspace.data?.role !== "reviewer" || n.id === "reviews"),
+                )
                 .map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -182,7 +220,7 @@ export function App() {
           <div className="sidebar-user">
             <span className="user-avatar">D</span>
             <div>
-              <strong>Developer</strong>
+              <strong>{workspace.data?.user?.name || "Developer"}</strong>
               <small>Local workspace</small>
             </div>
             <span className="version">v0.1</span>
@@ -270,6 +308,10 @@ export function App() {
               onResult={setResultId}
               notify={setToast}
             />
+          ) : page === "applications" ? (
+            <ApplicationsPage notify={setToast} />
+          ) : page === "reviews" ? (
+            <ReviewsPage workspace={workspace.data} notify={setToast} />
           ) : page === "settings" ? (
             <SettingsPage workspace={workspace.data} onSaved={refresh} />
           ) : (

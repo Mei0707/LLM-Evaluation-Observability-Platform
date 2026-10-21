@@ -48,6 +48,7 @@ export type Run = {
   finished_at: number | null;
   metrics: Metrics;
   dataset_version_id: string;
+  usage?: UsageSummary;
 };
 export type Version = {
   id: string;
@@ -122,7 +123,13 @@ export type Result = {
   spans?: Span[];
   human_score: number | null;
   human_note: string | null;
-  attempt_history?: { number: number; status: string; error: string | null }[];
+  attempt_history?: {
+    number: number;
+    status: string;
+    error: string | null;
+    trace_id: string | null;
+    trace_complete: boolean;
+  }[];
 };
 export type Trace = {
   trace_id: string;
@@ -135,11 +142,13 @@ export type Trace = {
   span_count: number;
   created_at: number;
   source: string;
+  attempt?: number;
 };
 export type Comparison = {
   baseline: Run;
   candidate: Run;
   paired_cases: number;
+  cost_comparison_complete?: boolean;
   mean_score_delta: number | null;
   score_delta_95_ci: [number, number] | null;
   uncertainty_method: string;
@@ -195,21 +204,38 @@ export type Overview = {
   active_runs: number;
   runs: Run[];
   error_categories: Record<string, number>;
+  usage?: UsageSummary;
 };
 export type Workspace = {
   project: { id: string; name: string };
   mode: string;
   provider_configured: boolean;
   auth_enabled: boolean;
+  auth_mode?: string;
+  role?: string;
+  user?: { id: string; name: string; is_admin: boolean };
+  credential_encryption?: boolean;
+};
+
+export type UsageSummary = {
+  calls: number;
+  known_cost: number;
+  uncertain_calls: number;
+  unpriced_calls: number;
+  legacy_results: number;
+  complete: boolean;
+  note: string;
 };
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const token = sessionStorage.getItem("evalscope-token");
+  const project = sessionStorage.getItem("evalscope-project");
   const response = await fetch("/api/v1" + path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(project ? { "X-Project-ID": project } : {}),
       ...init?.headers,
     },
   });

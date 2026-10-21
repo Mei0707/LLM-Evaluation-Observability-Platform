@@ -1,3 +1,4 @@
+import { UsagePanel } from "../features/UsagePanel";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -345,12 +346,13 @@ export function RunDetail({
           sub={`${m.retries} retries recorded`}
         />
         <Stat
-          label="Generation cost"
+          label="Known usage estimate"
           value={money(m.estimated_cost)}
           icon={Coins}
-          sub={`${(m.input_tokens + m.output_tokens).toLocaleString()} successful generation tokens`}
+          sub={`${(m.input_tokens + m.output_tokens).toLocaleString()} reported tokens · all attempts`}
         />
       </div>
+      <UsagePanel runId={id} />
       <details className="panel config-details">
         <summary>
           <Code2 size={16} />

@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from .db import transaction
 from .models import (
     Dataset,
+    ApplicationTarget,
+    Credential,
     DatasetVersion,
     Experiment,
     PromptVersion,
@@ -74,6 +76,15 @@ def freeze_config(session, config, project_id):
     version = require(session, DatasetVersion, config["dataset_version_id"])
     require(session, Dataset, version.dataset_id, project_id)
     prompt = require(session, PromptVersion, config["prompt_version_id"], project_id)
+    target = None
+    if config.get("target_id"):
+        target = require(session, ApplicationTarget, config["target_id"], project_id)
+    if config.get("provider_credential_id"):
+        credential = require(
+            session, Credential, config["provider_credential_id"], project_id
+        )
+        if not credential.active:
+            raise HTTPException(422, "Provider credential is disabled")
     if "retrieval" in config["evaluators"]:
         cases = session.scalars(
             select(TestCase).where(TestCase.version_id == version.id)
@@ -91,6 +102,18 @@ def freeze_config(session, config, project_id):
         "evaluator_versions": {
             name: VERSIONS[name] for name in sorted(config["evaluators"])
         },
+        "target_snapshot": (
+            {
+                "id": target.id,
+                "name": target.name,
+                "url": target.url,
+                "protocol": target.protocol,
+                "credential_id": target.credential_id,
+            }
+            if target
+            else None
+        ),
+        "accounting_version": "ledger-v1",
     }
 
 
@@ -148,7 +171,17 @@ def aggregate(results, total=None):
 
 def run_view(session, run):
     results = session.scalars(select(Result).where(Result.run_id == run.id)).all()
-    return {**columns(run), "metrics": aggregate(results, run.total)}
+    from .usage import summary
+
+    accounting = summary(session, [run.id])
+    metrics = aggregate(results, run.total)
+    if accounting["calls"]:
+        metrics.update(
+            input_tokens=accounting["input_tokens"],
+            output_tokens=accounting["output_tokens"],
+            estimated_cost=accounting["known_cost"],
+        )
+    return {**columns(run), "metrics": metrics, "usage": accounting}
 
 
 def compare(session, baseline, candidate):
@@ -222,15 +255,20 @@ def compare(session, baseline, candidate):
             for _ in range(1000)
         ]
         interval = [percentile(samples, 0.025), percentile(samples, 0.975)]
+    baseline_view, candidate_view = run_view(session, baseline), run_view(
+        session, candidate
+    )
     return {
-        "baseline": run_view(session, baseline),
-        "candidate": run_view(session, candidate),
+        "baseline": baseline_view,
+        "candidate": candidate_view,
         "cases": cases,
         "counts": {
             key: counts[key]
             for key in ["improved", "regressed", "unchanged", "missing"]
         },
         "paired_cases": len(differences),
+        "cost_comparison_complete": baseline_view["usage"]["complete"]
+        and candidate_view["usage"]["complete"],
         "mean_score_delta": statistics.mean(differences) if differences else None,
         "score_delta_95_ci": interval,
         "uncertainty_method": "paired percentile bootstrap, 1000 resamples, seed 42; descriptive, assumes independent cases",

@@ -1,6 +1,6 @@
 # Reproducible local benchmark report
 
-Measured October 21, 2026. Raw data: [throughput matrix](../benchmarks/results/local-baseline.json), [SIGKILL recovery](../benchmarks/results/recovery.json).
+Measured October 21, 2026. The first matrix describes the initial implementation before expanded usage/security features; current multi-process measurements follow below. Raw data: [throughput matrix](../benchmarks/results/local-baseline.json), [SIGKILL recovery](../benchmarks/results/recovery.json).
 
 ## Environment
 
@@ -54,7 +54,28 @@ The deterministic CI fixtures compare a precise baseline with an identical passi
 ## Limits and next measurements
 
 - Repeat each benchmark on an otherwise idle documented machine and report variation.
-- Measure PostgreSQL with one, three, and five separate worker processes, real Redis provider coordination, and high-latency simulated requests.
-- Measure database disconnect/failover, Redis outages, and prolonged provider throttling.
+- Repeat the new PostgreSQL multi-process measurements with larger corpora and multiple hardware configurations.
+- Extend the tested disconnect/restart/Redis scenarios to highly available database failover and prolonged provider throttling.
 - Collect an independent 100-case human-reviewed corpus and measure judge agreement and disagreement categories.
 - Measure provider usage for generation, embeddings, judges, retries, and uncertain timeouts before treating costs as a billing ledger.
+
+## PostgreSQL multi-process and fault laboratory
+
+Run `make reliability`. This creates a separate `evalscope-fault-lab` Compose project, uses disposable PostgreSQL/Redis services and a controlled HTTP provider, and removes only those lab volumes afterward. It never restarts or drops the application's database. Raw results: [distributed.json](../benchmarks/results/distributed.json).
+
+Each worker has five task slots; the run allows up to 32 claimed cases. The lab uses five-second renewable leases and a controlled 80 ms mock latency for throughput, longer simulated inference for crash/database/cancel tests, and a local 500 ms HTTP provider for Redis outage testing. No paid inference occurs. These are single observations, with other local processes active.
+
+| Scenario | Processes | Cases | Outcome | Wall seconds | Logical duplicates |
+| --- | ---: | ---: | --- | ---: | ---: |
+| throughput | 1 | 100 | COMPLETED | 4.96 | 0 |
+| throughput | 3 | 100 | COMPLETED | 2.32 | 0 |
+| throughput | 5 | 100 | COMPLETED | 1.91 | 0 |
+| worker-crash | 3 | 30 | COMPLETED | 7.40 | 0 |
+| database-disconnect | 3 | 30 | COMPLETED | 4.54 | 0 |
+| database-restart | 3 | 30 | COMPLETED | 4.50 | 0 |
+| redis-outage | 3 | 30 | COMPLETED | 8.69 | 0 |
+| cancel-in-flight | 3 | 30 | CANCELED | 3.28 | 0 |
+
+The one/three/five-process throughput runs completed 100/100 cases in each configuration. Four recovery scenarios completed 30/30 cases each; in-flight cancellation preserved the canceled state and did not resurrect late results. All eight scenarios retained unique logical results. Wall times include the full scenario and fault orchestration, not just outage duration. The five-second lab lease is deliberately distinct from the earlier unmodified 30-second lease recovery measurement.
+
+Connection-loss injection terminates worker PostgreSQL connections; the separate database-restart case restarts that lab database. Redis is stopped for three seconds, then restarted; live-provider calls fail closed and resume through persisted retry policy. Worker-crash injection SIGKILLs lab workers and restarts them. These measurements verify specific local recovery behaviors, not arbitrary production failover or exactly-once inference.

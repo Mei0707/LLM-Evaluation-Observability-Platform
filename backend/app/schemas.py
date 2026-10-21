@@ -16,6 +16,7 @@ class CaseInput(StrictModel):
     relevant_document_ids: list[str] = Field(default_factory=list, max_length=1000)
     retrieved_document_ids: list[str] = Field(default_factory=list, max_length=1000)
     tags: list[str] = Field(default_factory=list, max_length=30)
+    metadata: dict[str, str] = Field(default_factory=dict)
     # Explicit synthetic fixtures, only consumed by the mock provider.
     mock_output: str | None = Field(default=None, max_length=20000)
     mock_failure: Literal["timeout", "rate_limit", "permanent", "malformed"] | None = (
@@ -72,6 +73,8 @@ class RunConfig(StrictModel):
     dataset_version_id: str
     prompt_version_id: str
     provider: Literal["mock", "openai_compatible"] = "mock"
+    target_id: str | None = None
+    provider_credential_id: str | None = None
     model: str = Field(default="mock-balanced", min_length=1, max_length=120)
     temperature: float = Field(default=0, ge=0, le=2)
     evaluators: list[Evaluator] = Field(
@@ -84,8 +87,12 @@ class RunConfig(StrictModel):
     judge_model: str = Field(default="", max_length=120)
     embedding_model: str = Field(default="", max_length=120)
     retrieval_k: int = Field(default=5, ge=1, le=100)
-    input_cost_per_million: float = Field(default=0, ge=0, le=1000)
-    output_cost_per_million: float = Field(default=0, ge=0, le=1000)
+    input_cost_per_million: float | None = Field(default=None, ge=0, le=1000)
+    output_cost_per_million: float | None = Field(default=None, ge=0, le=1000)
+    judge_input_cost_per_million: float | None = Field(default=None, ge=0, le=1000)
+    judge_output_cost_per_million: float | None = Field(default=None, ge=0, le=1000)
+    embedding_cost_per_million: float | None = Field(default=None, ge=0, le=1000)
+    application_prices: dict[str, "ModelPrice"] = Field(default_factory=dict)
     capture_content: bool = False
     mock_latency_ms: float = Field(default=80, ge=0, le=5000)
 
@@ -93,7 +100,7 @@ class RunConfig(StrictModel):
     def validate_evaluators(self):
         if len(set(self.evaluators)) != len(self.evaluators):
             raise ValueError("Evaluators must be unique")
-        if self.provider == "mock":
+        if self.provider == "mock" and not self.target_id:
             if self.model not in {"mock-balanced", "mock-precise", "mock-regressed"}:
                 raise ValueError(
                     "Choose mock-balanced, mock-precise, or mock-regressed"
@@ -108,6 +115,72 @@ class RunConfig(StrictModel):
             if "semantic_similarity" in self.evaluators and not self.embedding_model:
                 raise ValueError("embedding_model is required")
         return self
+
+
+class ModelPrice(StrictModel):
+    input_cost_per_million: float = Field(ge=0, le=1000)
+    output_cost_per_million: float = Field(ge=0, le=1000)
+
+
+RunConfig.model_rebuild()
+
+
+class TargetInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    url: str = Field(min_length=1, max_length=2000)
+    credential_id: str | None = None
+
+
+class ApplicationUsage(StrictModel):
+    scope: Literal["generation", "embedding", "judge", "tool"]
+    model: str = Field(min_length=1, max_length=120)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+
+
+class ApplicationResponse(StrictModel):
+    output: str = Field(max_length=100000)
+    retrieved_document_ids: list[str] = Field(default_factory=list, max_length=1000)
+    contexts: list[str] = Field(default_factory=list, max_length=100)
+    spans: list["OnlineSpan"] = Field(default_factory=list, max_length=512)
+    usage: list[ApplicationUsage] = Field(default_factory=list, max_length=100)
+
+
+class UserInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class MembershipInput(StrictModel):
+    user_id: str
+    role: Literal["reader", "reviewer", "editor", "admin"]
+
+
+class CredentialInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    value: str = Field(min_length=1, max_length=10000, repr=False)
+
+
+class CampaignInput(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    run_ids: list[str] = Field(min_length=1, max_length=20)
+    rubric: str = Field(
+        default="Score correctness, relevance, completeness and groundedness from 0 to 1. Classify the main response quality. Review the answer independently; model identity and machine scores are hidden.",
+        min_length=1,
+        max_length=5000,
+    )
+    minimum_reviews: int = Field(default=2, ge=2, le=10)
+
+
+class LabelInput(StrictModel):
+    score: float = Field(ge=0, le=1)
+    category: Literal["correct", "incomplete", "hallucinated", "irrelevant"]
+    rationale: str = Field(min_length=1, max_length=2000)
+
+
+class RetentionInput(StrictModel):
+    enabled: bool = False
+    content_days: int = Field(default=30, ge=1, le=3650)
+    trace_days: int = Field(default=90, ge=1, le=3650)
 
 
 class ExperimentInput(StrictModel):
@@ -202,3 +275,6 @@ class OnlineTraceInput(StrictModel):
                 seen.add(current.span_id)
                 current = spans[current.parent_span_id]
         return self
+
+
+ApplicationResponse.model_rebuild()

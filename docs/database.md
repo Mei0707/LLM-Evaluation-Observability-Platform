@@ -29,8 +29,25 @@ Compose runs migrations in a one-shot service before starting the API. Local SQL
 
 The API records result state, attempt state, and scores transactionally. PostgreSQL run-row locks serialize concurrency accounting, recovery, cancellation, and finalization. Claim updates are conditional on the pending state; final writes require an unexpired lease and matching unique token. Unique constraints are a final backstop against duplicate logical results and score records.
 
-`X-Project-ID` filters every application read/write and related-object validation. It is a partition selector, not proof of user membership. The local token authorizes the entire service. Do not expose this prototype as a multi-user service without authenticated identities and membership checks.
+`X-Project-ID` selects the project partition; membership is checked independently in users mode. Local mode authorizes one developer. Users mode requires an active personal-token identity and verifies project memberships and roles for every request; only system administrators can cross projects without explicit membership.
 
 ## Retention
 
-Dataset inputs and references are deliberately persisted. Generated output is omitted unless content capture was enabled on the frozen run. Human review requires captured output. Trace spans exclude content. Captured responses, explanations, and review notes have no automated expiration; a production deployment must implement a retention policy, protected administrative deletion, backup handling, and audit requirements before handling sensitive data.
+Dataset inputs and references are deliberately persisted. Generated output is omitted unless content capture was enabled on the frozen run. Human review requires captured output. Trace spans exclude content. Administrators can enable captured-content and trace lifetimes. The automatic sweeper clears expired response/explanation/note text and trace projections while preserving numeric scores, usage, review attribution, and audit metadata. Backups, exports, tracing storage, and dataset/prompt lifecycle require separate operator policies.
+
+## New evidence and access tables
+
+| Table | Purpose / constraints |
+| --- | --- |
+| users | Active identity, hashed token, system-admin flag; unique token hash |
+| project_memberships | Unique project/user role; membership changes serialize on project row |
+| credentials | Project-owned Fernet ciphertext, version, active state; plaintext excluded from API responses |
+| application_targets | Immutable project-owned URL, contract, optional credential reference |
+| usage_events | Durable intent per stage/attempt, reported/uncertain state, token counts, frozen rates and cost; optional parent envelope |
+| review_campaigns | Immutable rubric and minimum distinct reviews |
+| review_items | Unique campaign/result identity |
+| human_labels | Unique item/reviewer; immutable score/category/rationale |
+| retention_policies | Unique project policy, explicitly enabled content/trace lifetimes |
+| audit_events | Actor/action/object metadata without credentials or submitted content |
+
+Execution attempts now retain their own trace ID, spans, completion flag, and purge timestamp. Results record content purge time and opt-in captured retrieval evidence. The additive migration preserves the latest historical trace on its corresponding attempt. Historical records without usage intents remain explicitly incomplete; migration does not invent missing charges.

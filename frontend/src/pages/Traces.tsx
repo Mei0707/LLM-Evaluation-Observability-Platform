@@ -81,20 +81,14 @@ export function TracesPage({ onResult }: { onResult: (id: string) => void }) {
                   <tr
                     className="clickable-row"
                     key={t.trace_id}
-                    onClick={() =>
-                      t.result_id
-                        ? onResult(t.result_id)
-                        : setOnline(t.trace_id)
-                    }
+                    onClick={() => setOnline(t.trace_id)}
                   >
                     <td>
                       <button
                         className="trace-link"
                         onClick={(e) => {
                           e.stopPropagation();
-                          t.result_id
-                            ? onResult(t.result_id)
-                            : setOnline(t.trace_id);
+                          setOnline(t.trace_id);
                         }}
                       >
                         <Activity size={15} />
@@ -103,7 +97,10 @@ export function TracesPage({ onResult }: { onResult: (id: string) => void }) {
                     </td>
                     <td className="mono">
                       {t.case_id}
-                      <small className="trace-source">{t.source}</small>
+                      <small className="trace-source">
+                        {t.source}
+                        {t.attempt ? ` · attempt ${t.attempt}` : ""}
+                      </small>
                     </td>
                     <td>
                       <Badge status={t.status} />
@@ -129,7 +126,11 @@ export function TracesPage({ onResult }: { onResult: (id: string) => void }) {
         )}
       </section>
       {online && (
-        <OnlineTraceModal id={online} onClose={() => setOnline(null)} />
+        <OnlineTraceModal
+          id={online}
+          onClose={() => setOnline(null)}
+          onResult={onResult}
+        />
       )}
     </>
   );
@@ -282,6 +283,15 @@ export function ResultModal({
                         <span>Attempt {a.number}</span>
                         <Badge status={a.status} />
                         <code>{a.error || "No error"}</code>
+                        {a.trace_id && (
+                          <a
+                            className="text-link"
+                            href={`#traces`}
+                            onClick={() => onClose()}
+                          >
+                            Trace {a.trace_id.slice(0, 8)}
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -339,19 +349,30 @@ export function ResultModal({
 export function OnlineTraceModal({
   id,
   onClose,
+  onResult,
 }: {
   id: string;
   onClose: () => void;
+  onResult?: (id: string) => void;
 }) {
   const trace = useQuery({
     queryKey: ["online-trace", id],
     queryFn: () =>
-      api<{ service: string; spans: import("../api").Span[] }>("/traces/" + id),
+      api<{
+        service?: string;
+        attempt?: number;
+        expired?: boolean;
+        result_id?: string;
+        spans: import("../api").Span[];
+      }>("/traces/" + id),
   });
   return (
     <Modal
-      title={trace.data?.service || "Application trace"}
-      subtitle={`Online request · ${id}`}
+      title={
+        trace.data?.service ||
+        `Evaluation attempt ${trace.data?.attempt || "—"}`
+      }
+      subtitle={`Trace · ${id}`}
       onClose={onClose}
       wide
     >
@@ -362,9 +383,27 @@ export function OnlineTraceModal({
         ) : (
           <>
             <div className="info-box">
-              Application spans contain allowlisted metadata only. Inputs and
-              responses are never accepted by trace ingestion.
+              This exact trace belongs to the selected request or attempt. New
+              evaluation traces measure the persistence transaction; historical
+              traces can predate that instrumentation. Expired spans are
+              unavailable.
             </div>
+            {trace.data?.expired && (
+              <div className="info-box">
+                Trace spans expired under the project retention policy.
+              </div>
+            )}
+            {trace.data?.result_id && onResult && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  onResult(trace.data!.result_id!);
+                  onClose();
+                }}
+              >
+                Inspect case results
+              </Button>
+            )}
             <div className="table-scroll">
               <table>
                 <thead>

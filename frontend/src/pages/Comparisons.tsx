@@ -283,6 +283,13 @@ export function ComparisonsPage({
       )}
       {comparison ? (
         <>
+          {comparison.cost_comparison_complete === false && (
+            <div className="info-box">
+              Cost estimates are incomplete for at least one run. Known totals
+              exclude unresolved charges; inspect each run's usage ledger before
+              comparing spend.
+            </div>
+          )}
           <div className="comparison-stats">
             {(["improved", "regressed", "unchanged", "missing"] as const).map(
               (key, i) => {

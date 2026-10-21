@@ -1,3 +1,4 @@
+import { Governance } from "../features/Governance";
 import React, { useState } from "react";
 import { Check, ExternalLink } from "lucide-react";
 import { type Workspace } from "../api";
@@ -41,8 +42,9 @@ export function SettingsPage({
             />
           </label>
           <p className="field-help">
-            Stored in this browser tab's session storage. The token grants
-            access to the local service; it is not a multi-user account.
+            Stored in this browser tab's session storage. In users mode this is
+            your personal identity token; project permissions are checked for
+            every request.
           </p>
           <div>
             <Button
@@ -50,8 +52,7 @@ export function SettingsPage({
                 token
                   ? sessionStorage.setItem("evalscope-token", token)
                   : sessionStorage.removeItem("evalscope-token");
-                onSaved();
-                setSaved(true);
+                location.reload();
               }}
             >
               <Check size={16} />
@@ -65,6 +66,7 @@ export function SettingsPage({
           </div>
         </div>
       </section>
+      <Governance workspace={workspace} onSaved={onSaved} />
       <section className="panel settings-panel">
         <div className="panel-header">
           <h3>Model provider</h3>

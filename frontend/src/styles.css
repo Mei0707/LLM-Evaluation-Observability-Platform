@@ -2766,3 +2766,51 @@ legend {
     scroll-behavior: auto !important;
   }
 }
+
+/* Management controls share the dashboard's compact form language. */
+.credential-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.credential-row > span {
+  flex: 1;
+}
+.settings-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.trace-source {
+  display: block;
+  font-size: 9px;
+  color: #7c8f70;
+  margin-top: 5px;
+}
+.sidebar {
+  overflow-y: auto;
+}
+.sidebar nav {
+  flex-shrink: 0;
+}
+.sidebar-bottom {
+  flex-shrink: 0;
+}
+.badge.uncertain,
+.badge.unreported {
+  background: #fbf4e5;
+  color: #a87a31;
+}
+.badge.reported {
+  background: #eef6e8;
+  color: #5d8751;
+}
+.usage-note {
+  font-size: 11px;
+  color: #8b7859;
+  padding: 12px 20px;
+}

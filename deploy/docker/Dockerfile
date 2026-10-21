@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir -r requirements.lock
 COPY backend/ ./backend/
 COPY cli/ ./cli/
 COPY evalscope_sdk/ ./evalscope_sdk/
+COPY examples/ ./examples/
+COPY datasets/review/ ./datasets/review/
 COPY alembic.ini ./
 COPY --from=frontend /ui/dist ./frontend/dist
 RUN pip install --no-deps . && useradd --create-home --uid 10001 evalscope

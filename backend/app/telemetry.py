@@ -42,6 +42,59 @@ class Recorder:
         self.trace_id = None
         self.root_context = None
 
+    def traceparent(self):
+        from opentelemetry import trace
+
+        ctx = trace.get_current_span().get_span_context()
+        return f"00-{ctx.trace_id:032x}-{ctx.span_id:016x}-01"
+
+    def import_application_spans(self, spans):
+        from .schemas import OnlineTraceInput
+
+        if not spans:
+            return
+        validated = OnlineTraceInput(
+            trace_id=self.trace_id, service="application", spans=spans
+        )
+        parent = trace.get_current_span().get_span_context()
+        contexts = {}
+        remaining = list(validated.spans)
+        while remaining:
+            for item in list(remaining):
+                if item.parent_span_id and item.parent_span_id not in contexts:
+                    continue
+                ancestor = contexts.get(item.parent_span_id, parent)
+                attributes = item.attributes.model_dump(exclude_none=True)
+                remote = tracer.start_span(
+                    "application." + item.name,
+                    context=trace.set_span_in_context(trace.NonRecordingSpan(ancestor)),
+                    start_time=int(item.started_at * 1e9),
+                    attributes=attributes,
+                )
+                if item.status == "ERROR":
+                    remote.set_status(
+                        Status(
+                            StatusCode.ERROR,
+                            attributes.get("error_category", "application_error"),
+                        )
+                    )
+                remote.end(end_time=int(item.ended_at * 1e9))
+                ctx = remote.get_span_context()
+                contexts[item.span_id] = ctx
+                self.spans.append(
+                    {
+                        "name": "application." + item.name,
+                        "span_id": f"{ctx.span_id:016x}",
+                        "parent_span_id": f"{ancestor.span_id:016x}",
+                        "started_at": item.started_at,
+                        "ended_at": item.ended_at,
+                        "duration_ms": (item.ended_at - item.started_at) * 1000,
+                        "status": item.status,
+                        "attributes": attributes,
+                    }
+                )
+                remaining.remove(item)
+
     @contextmanager
     def span(self, operation, **attributes):
         # Only callers' bounded metadata is accepted, never prompt/response text.
@@ -76,5 +129,6 @@ class Recorder:
                 span.set_status(Status(StatusCode.ERROR, record["error"]))
                 raise
             finally:
+                record["attributes"] = dict(span.attributes or {})
                 record["ended_at"] = time.time()
                 record["duration_ms"] = (record["ended_at"] - started) * 1000

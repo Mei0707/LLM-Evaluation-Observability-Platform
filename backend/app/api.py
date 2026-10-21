@@ -10,6 +10,7 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from pydantic import Field, ValidationError
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from sqlalchemy import case as sql_case, func, select, update, text
@@ -61,6 +62,7 @@ from .services import (
 )
 from .worker import serve
 from .telemetry import HTTP_REQUESTS, HTTP_DURATION
+from . import security, usage
 
 
 @asynccontextmanager
@@ -75,12 +77,17 @@ async def lifespan(app):
         with transaction() as session:
             if not session.get(Project, DEFAULT_PROJECT):
                 session.add(Project(id=DEFAULT_PROJECT, name="Default workspace"))
+    security.initialize(settings)
     stop = asyncio.Event()
     task = asyncio.create_task(serve(stop)) if settings.embedded_worker else None
+    from .retention import serve as retain
+
+    retention_task = asyncio.create_task(retain(stop))
     yield
     stop.set()
     if task:
         await task
+    await retention_task
 
 
 app = FastAPI(title="EvalScope API", version="0.1.0", lifespan=lifespan)
@@ -89,12 +96,25 @@ app = FastAPI(title="EvalScope API", version="0.1.0", lifespan=lifespan)
 @app.middleware("http")
 async def access_and_size(request: Request, call_next):
     started = time.monotonic()
-    if request.url.path.startswith(("/api/", "/metrics")) and settings.api_token:
+    protected = request.url.path.startswith(("/api/", "/metrics"))
+    if protected and settings.require_https and request.url.scheme != "https":
+        return JSONResponse({"detail": "HTTPS required"}, status_code=426)
+    if protected and settings.auth_mode == "local" and settings.api_token:
         supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
         if not hmac.compare_digest(supplied.encode(), settings.api_token.encode()):
             return JSONResponse(
                 {"detail": "Valid bearer token required"}, status_code=401
             )
+    if protected:
+        try:
+            request.state.principal = security.identify(request, settings)
+            if (
+                request.url.path == "/metrics"
+                and not request.state.principal["is_admin"]
+            ):
+                raise HTTPException(403, "Administrator access required")
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     if request.method in {"POST", "PUT", "PATCH"}:
         size, chunks = 0, []
         async for chunk in request.stream():
@@ -125,10 +145,21 @@ async def integrity_error(request, exc):
     )
 
 
-def project(x_project_id: str = Header(default=DEFAULT_PROJECT)):
-    with transaction() as session:
-        require(session, Project, x_project_id)
-    return x_project_id
+@app.exception_handler(RequestValidationError)
+async def safe_validation_error(request, exc):
+    return JSONResponse(
+        {
+            "detail": [
+                {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
+                for error in exc.errors()
+            ]
+        },
+        status_code=422,
+    )
+
+
+def project(request: Request, x_project_id: str = Header(default=DEFAULT_PROJECT)):
+    return security.authorize_project(request, x_project_id)
 
 
 @app.get("/health")
@@ -142,13 +173,17 @@ def health():
 
 
 @app.get("/api/v1/workspace")
-def workspace(project_id=Depends(project)):
+def workspace(request: Request, project_id=Depends(project)):
     with transaction() as session:
         return {
             "project": columns(require(session, Project, project_id)),
             "mode": "local prototype",
             "provider_configured": bool(settings.provider_key),
-            "auth_enabled": bool(settings.api_token),
+            "auth_enabled": settings.auth_mode == "users" or bool(settings.api_token),
+            "auth_mode": settings.auth_mode,
+            "user": request.state.principal,
+            "role": request.state.role,
+            "credential_encryption": bool(settings.master_key),
         }
 
 
@@ -164,8 +199,20 @@ def overview(project_id=Depends(project)):
         results = session.scalars(
             select(Result).join(Run).where(Run.project_id == project_id)
         ).all()
+        accounting = usage.summary(
+            session,
+            list(session.scalars(select(Run.id).where(Run.project_id == project_id))),
+        )
+        metrics = aggregate(results)
+        if accounting["calls"]:
+            metrics.update(
+                estimated_cost=accounting["known_cost"],
+                input_tokens=accounting["input_tokens"],
+                output_tokens=accounting["output_tokens"],
+            )
         return {
-            "metrics": aggregate(results),
+            "metrics": metrics,
+            "usage": accounting,
             "run_count": session.scalar(
                 select(func.count())
                 .select_from(Run)
@@ -348,7 +395,14 @@ def create_experiment(body: ExperimentInput, project_id=Depends(project)):
     config = body.config.model_dump()
     with transaction() as session:
         freeze_config(session, config, project_id)
-        if config["provider"] != "mock" and not settings.provider_key:
+        if (
+            (
+                (not config.get("target_id") and config["provider"] != "mock")
+                or {"llm_judge", "semantic_similarity"} & set(config["evaluators"])
+            )
+            and not settings.provider_key
+            and not config.get("provider_credential_id")
+        ):
             raise HTTPException(
                 422,
                 "Set PROVIDER_API_KEY on the server before running live evaluations",
@@ -492,7 +546,11 @@ def review_result(result_id: str, body: HumanReview, project_id=Depends(project)
     with transaction() as session:
         result = require(session, Result, result_id)
         run = require(session, Run, result.run_id, project_id)
-        if result.status != "COMPLETED" or not run.config["capture_content"]:
+        if (
+            result.status != "COMPLETED"
+            or not run.config["capture_content"]
+            or result.output is None
+        ):
             raise HTTPException(
                 409, "Review requires a completed case with captured output"
             )
@@ -532,26 +590,30 @@ def calibration(run_id: str, project_id=Depends(project)):
 def traces(limit: int = Query(100, ge=1, le=500), project_id=Depends(project)):
     with transaction() as session:
         query = (
-            select(Result)
-            .join(Run)
-            .where(Run.project_id == project_id, Result.trace_id.is_not(None))
-            .order_by(Result.created_at.desc())
+            select(Attempt, Result)
+            .join(Result, Result.id == Attempt.result_id)
+            .join(Run, Run.id == Result.run_id)
+            .where(Run.project_id == project_id, Attempt.trace_id.is_not(None))
+            .order_by(Attempt.created_at.desc())
             .limit(limit)
         )
         items = [
             {
-                "trace_id": r.trace_id,
+                "trace_id": a.trace_id,
                 "case_id": r.case_id,
                 "run_id": r.run_id,
                 "result_id": r.id,
-                "status": r.status,
-                "latency_ms": r.latency_ms,
-                "error": r.error,
-                "span_count": len(r.spans),
-                "created_at": r.created_at,
+                "status": a.status,
+                "latency_ms": a.spans[0].get("duration_ms") if a.spans else None,
+                "error": a.error,
+                "span_count": len(a.spans),
+                "created_at": a.created_at,
                 "source": "evaluation",
+                "attempt": a.number,
+                "trace_complete": a.trace_complete,
+                "expired": a.trace_purged_at is not None,
             }
-            for r in session.scalars(query)
+            for a, r in session.execute(query)
         ]
         online = session.scalars(
             select(OnlineTrace)
@@ -619,6 +681,25 @@ def ingest_trace(body: OnlineTraceInput, project_id=Depends(project)):
 @app.get("/api/v1/traces/{trace_id}")
 def get_trace(trace_id: str, project_id=Depends(project)):
     with transaction() as session:
+        pair = session.execute(
+            select(Attempt, Result)
+            .join(Result, Result.id == Attempt.result_id)
+            .join(Run, Run.id == Result.run_id)
+            .where(Attempt.trace_id == trace_id, Run.project_id == project_id)
+        ).first()
+        if pair:
+            attempt, result = pair
+            return {
+                "trace_id": trace_id,
+                "result_id": result.id,
+                "attempt": attempt.number,
+                "spans": attempt.spans,
+                "trace_complete": attempt.trace_complete,
+                "expired": attempt.trace_purged_at is not None,
+                "content_captured": session.get(Run, result.run_id).config[
+                    "capture_content"
+                ],
+            }
         result = session.scalar(
             select(Result)
             .join(Run)
@@ -746,6 +827,7 @@ def metrics():
                 func.sum(sql_case((Result.attempts > 1, Result.attempts - 1), else_=0)),
             )
         ).one()
+        accounting = usage.summary(session, list(session.scalars(select(Run.id))))
         lines = [
             "# TYPE evaluation_runs_total gauge",
             f"evaluation_runs_total {sum(run_counts.values())}",
@@ -756,16 +838,36 @@ def metrics():
             "# TYPE evaluation_queue_depth gauge",
             f"evaluation_queue_depth {result_counts.get('PENDING', 0)}",
             "# TYPE llm_tokens_total gauge",
-            f'llm_tokens_total{{direction="input"}} {tokens[0] or 0}',
-            f'llm_tokens_total{{direction="output"}} {tokens[1] or 0}',
+            f'llm_tokens_total{{direction="input"}} {accounting["input_tokens"]}',
+            f'llm_tokens_total{{direction="output"}} {accounting["output_tokens"]}',
+            "# TYPE llm_known_cost_usd gauge",
+            f'llm_known_cost_usd {accounting["known_cost"]}',
+            "# TYPE llm_usage_unresolved gauge",
+            f'llm_usage_unresolved {accounting["uncertain_calls"]+accounting["unpriced_calls"]+accounting["legacy_results"]}',
             "# TYPE evaluation_retries_total gauge",
             f"evaluation_retries_total {tokens[2] or 0}",
         ]
+        lines.append("# TYPE llm_stage_tokens_total gauge")
+        for stage, amounts in accounting["by_scope"].items():
+            if stage not in {"generation", "embedding", "judge", "application", "tool"}:
+                continue
+            lines.extend(
+                [
+                    f'llm_stage_tokens_total{{stage="{stage}",direction="input"}} {amounts["input_tokens"]}',
+                    f'llm_stage_tokens_total{{stage="{stage}",direction="output"}} {amounts["output_tokens"]}',
+                ]
+            )
     return Response(
         generate_latest() + ("\n".join(lines) + "\n").encode(),
         media_type=CONTENT_TYPE_LATEST,
     )
 
+
+from .management import router as management_router
+from .reviews import router as review_router
+
+app.include_router(management_router)
+app.include_router(review_router)
 
 frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if frontend.is_dir():

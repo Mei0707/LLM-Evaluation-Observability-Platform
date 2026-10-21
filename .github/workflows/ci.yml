@@ -1,5 +1,5 @@
 name: Validate EvalScope
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
@@ -48,8 +48,10 @@ jobs:
         working-directory: frontend
       - name: Start API and worker
         run: |
-          EVALSCOPE_SEED_DEMO=false uvicorn backend.app.api:app --host 127.0.0.1 --port 8000 > /tmp/evalscope-api.log 2>&1 &
+          EVALSCOPE_TARGET_HOSTS=127.0.0.1 EVALSCOPE_SEED_DEMO=false uvicorn backend.app.api:app --host 127.0.0.1 --port 8000 > /tmp/evalscope-api.log 2>&1 &
+          uvicorn examples.rag_app:app --host 127.0.0.1 --port 8080 > /tmp/evalscope-reference.log 2>&1 &
           python scripts/wait_for_api.py
+          EVALSCOPE_URL=http://127.0.0.1:8080 python scripts/wait_for_api.py
       - name: Configure deterministic CI evaluations
         run: python scripts/prepare_ci.py
       - name: Establish baseline and verify passing candidate
@@ -62,6 +64,8 @@ jobs:
       - name: Browser workflow
         run: npm run test:e2e
         working-directory: frontend
+        env:
+          EVALSCOPE_APPLICATION_URL: http://127.0.0.1:8080/evaluate
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -70,3 +74,18 @@ jobs:
             artifacts/
             frontend/playwright-report/
             frontend/test-results/
+  resilience:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Build the isolated laboratory image
+        run: docker compose build migrate
+      - name: Multiple workers and injected dependency failures
+        run: python -m benchmarks.distributed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resilience-evidence
+          path: benchmarks/results/distributed.json

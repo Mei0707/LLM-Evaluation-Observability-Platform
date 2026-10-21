@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
@@ -108,6 +109,8 @@ class Result(Identity, Base):
     spans: Mapped[list] = mapped_column(JSON, default=list)
     human_score: Mapped[float | None] = mapped_column(Float)
     human_note: Mapped[str | None] = mapped_column(Text)
+    content_purged_at: Mapped[float | None] = mapped_column(Float)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
 
 
 class Score(Identity, Base):
@@ -133,6 +136,12 @@ class Attempt(Identity, Base):
     status: Mapped[str] = mapped_column(String(20))
     error: Mapped[str | None] = mapped_column(String(80))
     finished_at: Mapped[float | None] = mapped_column(Float)
+    trace_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    spans: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    trace_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
+    trace_purged_at: Mapped[float | None] = mapped_column(Float)
 
 
 class Baseline(Identity, Base):
@@ -161,3 +170,106 @@ class OnlineTrace(Identity, Base):
     status: Mapped[str] = mapped_column(String(20))
     latency_ms: Mapped[float] = mapped_column(Float)
     spans: Mapped[list] = mapped_column(JSON)
+
+
+class User(Identity, Base):
+    __tablename__ = "users"
+    name: Mapped[str] = mapped_column(String(120))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Membership(Identity, Base):
+    __tablename__ = "project_memberships"
+    __table_args__ = (UniqueConstraint("project_id", "user_id"),)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(20))
+
+
+class Credential(Identity, Base):
+    __tablename__ = "credentials"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ApplicationTarget(Identity, Base):
+    __tablename__ = "application_targets"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    url: Mapped[str] = mapped_column(String(2000))
+    credential_id: Mapped[str | None] = mapped_column(ForeignKey("credentials.id"))
+    protocol: Mapped[str] = mapped_column(String(20), default="evalscope-v1")
+
+
+class UsageEvent(Identity, Base):
+    __tablename__ = "usage_events"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("evaluation_runs.id"), index=True)
+    attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("execution_attempts.id"), index=True
+    )
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("usage_events.id"))
+    scope: Mapped[str] = mapped_column(String(20))
+    model: Mapped[str] = mapped_column(String(120))
+    state: Mapped[str] = mapped_column(String(20), default="STARTED")
+    source: Mapped[str] = mapped_column(String(20), default="provider")
+    billable: Mapped[bool] = mapped_column(Boolean, default=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    input_rate: Mapped[float | None] = mapped_column(Float)
+    output_rate: Mapped[float | None] = mapped_column(Float)
+    estimated_cost: Mapped[float | None] = mapped_column(Float)
+    request_id: Mapped[str | None] = mapped_column(String(200))
+    error: Mapped[str | None] = mapped_column(String(80))
+    finished_at: Mapped[float | None] = mapped_column(Float)
+
+
+class ReviewCampaign(Identity, Base):
+    __tablename__ = "review_campaigns"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    rubric: Mapped[str] = mapped_column(Text)
+    minimum_reviews: Mapped[int] = mapped_column(Integer, default=2)
+
+
+class ReviewItem(Identity, Base):
+    __tablename__ = "review_items"
+    __table_args__ = (UniqueConstraint("campaign_id", "result_id"),)
+    campaign_id: Mapped[str] = mapped_column(
+        ForeignKey("review_campaigns.id"), index=True
+    )
+    result_id: Mapped[str] = mapped_column(ForeignKey("evaluation_results.id"))
+
+
+class HumanLabel(Identity, Base):
+    __tablename__ = "human_labels"
+    __table_args__ = (UniqueConstraint("item_id", "reviewer_id"),)
+    item_id: Mapped[str] = mapped_column(ForeignKey("review_items.id"), index=True)
+    reviewer_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    score: Mapped[float] = mapped_column(Float)
+    category: Mapped[str] = mapped_column(String(30))
+    rationale: Mapped[str] = mapped_column(Text)
+
+
+class RetentionPolicy(Identity, Base):
+    __tablename__ = "retention_policies"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), unique=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    content_days: Mapped[int] = mapped_column(Integer, default=30)
+    trace_days: Mapped[int] = mapped_column(Integer, default=90)
+
+
+class AuditEvent(Identity, Base):
+    __tablename__ = "audit_events"
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), index=True
+    )
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(60))
+    target_id: Mapped[str | None] = mapped_column(String(36))
+    details: Mapped[dict] = mapped_column(JSON, default=dict)

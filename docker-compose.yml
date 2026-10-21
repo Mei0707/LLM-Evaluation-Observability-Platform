@@ -33,6 +33,10 @@ services:
       EVALSCOPE_EMBEDDED_WORKER: "false"
       EVALSCOPE_SEED_DEMO: ${EVALSCOPE_SEED_DEMO:-true}
       EVALSCOPE_API_TOKEN: ${EVALSCOPE_API_TOKEN:-}
+      EVALSCOPE_AUTH_MODE: ${EVALSCOPE_AUTH_MODE:-local}
+      EVALSCOPE_MASTER_KEY: ${EVALSCOPE_MASTER_KEY:-}
+      EVALSCOPE_BOOTSTRAP_TOKEN: ${EVALSCOPE_BOOTSTRAP_TOKEN:-}
+      EVALSCOPE_TARGET_HOSTS: ${EVALSCOPE_TARGET_HOSTS:-reference-app}
       PROVIDER_API_KEY: ${PROVIDER_API_KEY:-}
       PROVIDER_BASE_URL: ${PROVIDER_BASE_URL:-https://api.openai.com/v1}
       PROVIDER_CONCURRENCY: ${PROVIDER_CONCURRENCY:-5}
@@ -64,6 +68,11 @@ services:
     depends_on:
       api: {condition: service_healthy}
     restart: unless-stopped
+  reference-app:
+    image: evalscope:local
+    pull_policy: never
+    profiles: [applications]
+    command: ["uvicorn", "examples.rag_app:app", "--host", "0.0.0.0", "--port", "8080"]
   jaeger:
     image: jaegertracing/all-in-one:1.65.0
     profiles: [observability]

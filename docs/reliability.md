@@ -24,6 +24,14 @@ Without Redis, live rate limits coordinate only a single process. All workers in
 
 Unit and integration tests simulate transient/permanent providers, malformed judges, duplicate persistence, expired owners, cancellation during work, and snapshot changes. The same suite runs against disposable SQLite and PostgreSQL databases. `benchmarks/recovery.py` performs a real SIGKILL during active inference, starts a new worker, and measures complete recovery under the default lease. Raw results are checked in.
 
-Database connection pooling uses `pool_pre_ping`. A transient claim exception is logged and retried; no API connection waits for inference. A failure during persistence leaves the lease available for recovery. Severe database stalls can block the synchronous SQLAlchemy calls, delaying heartbeats; expired writes remain fenced. Whole-database disconnect/failover and Redis-outage integration studies are not yet measured.
+Database connection pooling uses `pool_pre_ping`. A transient claim exception is logged and retried; no API connection waits for inference. A failure during persistence leaves the lease available for recovery. Severe database stalls can block synchronous SQLAlchemy calls, delaying heartbeats; expired writes remain fenced. The isolated fault lab exercised terminated PostgreSQL connections, a database restart, Redis outage, SIGKILL, and in-flight cancellation. These are local dependency recovery measurements, not a highly available database failover guarantee.
 
 The worker catches task exceptions so a single case does not stop its poll loop. Graceful shutdown cancels in-flight tasks and leaves their leases to recover. Completed attempts and scores remain transactional. Local API `--reload` can abandon work; this is expected and recovered by lease expiry, rather than pretending no request was repeated.
+
+## Expanded failure evidence
+
+[The PostgreSQL/Redis laboratory](../benchmarks/distributed.py) runs one, three, and five separate worker processes. It uses a separate Compose project with disposable volumes and no paid inference. All throughput/failure scenarios returned zero duplicate logical results. See [raw measurements](../benchmarks/results/distributed.json).
+
+Workers check cancellation/ownership at most once per second while awaiting providers. Losing ownership cancels the task, but uncertain provider charges remain in the ledger. Task cancellation is handled without terminating the worker loop. Real inference accepted before cancellation can still incur charges. Provider request intents are written before dispatch; expired attempts settle outstanding intents as UNCERTAIN. Late usage evidence can resolve its own request without overwriting logical results.
+
+Redis clients use bounded connection/read timeouts. A request slot whose release fails during an outage is retained for a later cleanup attempt by that worker; this prevents avoidable capacity loss after Redis resumes. Crashed-worker slots still rely on bounded expiry. Traces retain all attempt IDs, and the persistence span measures the actual commit transaction.

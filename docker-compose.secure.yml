@@ -1,0 +1,54 @@
+# Use with: docker compose -f docker-compose.yml -f docker-compose.secure.yml up --build -d
+services:
+  secret-init:
+    image: evalscope:local
+    user: root
+    command:
+      - python
+      - -c
+      - |
+        import os
+        from pathlib import Path
+        for name in ('admin-token', 'master-key'):
+            target = Path('/secure') / name
+            target.write_bytes((Path('/run/secrets') / name).read_bytes())
+            os.chmod(target, 0o400)
+            os.chown(target, 10001, 10001)
+    secrets: [admin-token, master-key]
+    volumes: ["runtime-secrets:/secure"]
+  api:
+    ports: !reset []
+    command: ["uvicorn", "backend.app.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+    environment:
+      EVALSCOPE_AUTH_MODE: users
+      EVALSCOPE_SEED_DEMO: "false"
+      EVALSCOPE_REQUIRE_HTTPS: "true"
+      EVALSCOPE_BOOTSTRAP_TOKEN_FILE: /secure/admin-token
+      EVALSCOPE_MASTER_KEY_FILE: /secure/master-key
+    volumes: ["runtime-secrets:/secure:ro"]
+    depends_on:
+      secret-init: {condition: service_completed_successfully}
+  worker:
+    environment:
+      EVALSCOPE_AUTH_MODE: users
+      EVALSCOPE_MASTER_KEY_FILE: /secure/master-key
+    volumes: ["runtime-secrets:/secure:ro"]
+    depends_on:
+      secret-init: {condition: service_completed_successfully}
+  gateway:
+    image: caddy:2-alpine
+    environment:
+      EVALSCOPE_DOMAIN: ${EVALSCOPE_DOMAIN:-localhost}
+    ports: ["127.0.0.1:${EVALSCOPE_TLS_PORT:-8443}:443"]
+    volumes: ["./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+    depends_on:
+      api: {condition: service_healthy}
+secrets:
+  admin-token:
+    file: ./.secrets/admin-token
+  master-key:
+    file: ./.secrets/master-key
+volumes:
+  runtime-secrets:
+  caddy-data:
+  caddy-config:

@@ -2,73 +2,86 @@
 
 **Evaluate with evidence. Ship with confidence.**
 
-EvalScope is a working local platform for reproducible LLM evaluations, execution traces, paired experiment comparisons, and automated release gates. It implements the core of [the project proposal](Project%20Proposal.pdf), with a documented [proposal review and acceptance matrix](docs/proposal-review.md).
+A working LLM/application evaluation platform with immutable datasets, asynchronous workers, distributed traces, paired comparisons, release gates, and blinded human review. [Proposal review](docs/proposal-review.md) · [Architecture](docs/architecture.md) · [Verification](docs/verification.md).
 
-![EvalScope evaluation dashboard](docs/screenshots/overview.png)
+![Evaluation dashboard](docs/screenshots/overview.png)
 
-## Run it
-
-### Docker: PostgreSQL + Redis + API + worker + dashboard
-
-Requires Docker Compose and an available local port 8000:
+## Start locally
 
 ```sh
-docker compose up --build -d
+docker compose --profile applications up --build -d
 ```
 
-Open **http://localhost:8000**. API documentation: **http://localhost:8000/docs**. The application seeds 100 explicitly synthetic support cases, an immutable prompt, and two real mock-provider evaluation runs. The worker executes both runs; the baseline scores perfectly and the candidate introduces deterministic regressions. No provider key is required and no external inference is performed.
+Open **http://localhost:8000**; REST documentation is at **http://localhost:8000/docs**. PostgreSQL, Redis, API, workers, and the React dashboard run locally. The applications profile adds an HTTP reference RAG pipeline. No provider key or paid inference is required for the demo.
 
-```sh
-docker compose logs -f worker
-docker compose up -d --scale worker=3
-docker compose down
-```
-
-Compose binds public-facing ports to loopback. Database and Redis data persist in named Docker volumes. `docker compose down` preserves those volumes.
-
-### Python + Node: lightweight development
-
-Requires Python 3.11+ and Node 22+:
+For Python/Node development (Python 3.11+, Node 22+):
 
 ```sh
 make setup
 make build
 make dev
+# In a second terminal for hot reload:
+make frontend
 ```
 
-Open **http://localhost:8000**. This mode uses SQLite WAL and an embedded asynchronous worker. For frontend hot reload, run `make frontend` in a second terminal and open **http://localhost:5173**. Vite proxies the API to port 8000.
+The API serves the build at port 8000; Vite runs at 5173. SQLite WAL and an embedded worker provide a lightweight single-process mode. PostgreSQL is the supported multi-process database. To separate workers locally, use `EVALSCOPE_EMBEDDED_WORKER=false make dev` and `make worker`.
 
-To use a separate worker, start the API with `EVALSCOPE_EMBEDDED_WORKER=false make dev`, then run `make worker`. Use PostgreSQL for multiple worker processes; SQLite is the single-process convenience mode.
+Docker runs Alembic migrations before startup. For a pre-existing local SQLite database created by the initial prototype, back it up, stamp its existing schema at `1282bd9483c3`, then run `alembic upgrade head` before starting the new worker. Do not stamp databases with a different schema. New SQLite databases are created automatically.
 
-To start without demo data, set `EVALSCOPE_SEED_DEMO=false`. Settings are read from process environment; local Python commands do not automatically read `.env`. Docker Compose reads `.env` for its `${...}` substitutions. See [.env.example](.env.example).
+Compose reads `.env`; Python commands read process environment or explicit secret files. See [.env.example](.env.example). Host ports are configurable using `EVALSCOPE_PORT`, `JAEGER_PORT`, `PROMETHEUS_PORT`, and `GRAFANA_PORT`. `docker compose down` preserves application data volumes.
 
-## What works
+## End-to-end capabilities
 
-- JSONL/CSV imports, validated cases and tags, immutable dataset versions with content fingerprints.
-- Immutable prompt versions, frozen experiment configurations, asynchronous runs with bounded concurrency.
-- Exact match, labeled retrieval precision@K/recall@K/MRR, actual embedding cosine similarity, and rubric-based LLM judging.
-- Durable case leases, heartbeat renewal, exponential backoff with jitter, explicit attempt history, cancellation, and restart recovery.
-- Case-level scores, latency, successful generation tokens, configured cost estimates, and OpenTelemetry spans.
-- An SDK and metadata-only ingestion API for observing real application requests.
-- Compatible-run comparisons, missing/failed case classification, paired score deltas and bootstrap uncertainty.
-- Saved quality-gate reports with PASS, FAIL, and INCONCLUSIVE outcomes; named baselines and a CLI for CI.
-- Explicit human review labels and a judge-calibration API. The synthetic examples are **not** an independently human-labeled evaluation corpus.
-- A responsive React/TypeScript dashboard with dataset and prompt management, run inspection, traces, comparison, and release-gate workflows.
+- **Reproducibility:** JSONL/CSV imports, tags, immutable dataset/prompt versions, frozen model/evaluator/application settings.
+- **Application evaluation:** register a RAG/agent endpoint, evaluate its actual retrieval and outputs, propagate trace context, and inspect returned application stages. Gold answers are withheld from the application.
+- **Evaluation:** normalized exact match, labeled precision@K/recall@K/MRR, actual embedding cosine similarity, and rubric-based LLM judging.
+- **Usage accounting:** durable request intents, generation/embedding/judge/application usage per attempt, frozen prices, retries and uncertain charges. Missing usage or prices are shown as unknown, not free.
+- **Human evidence:** 100 distinct authored review cases, blinded campaign queues, distinct authenticated reviewer labels, consensus, judge calibration, and visible disagreements. Independent human reviews are not fabricated.
+- **Reliability:** renewable fenced leases, bounded concurrency, persisted backoff, cancellation, per-attempt traces, and actual database-commit timing.
+- **Release decisions:** compatible-run comparisons, case deltas, paired bootstrap intervals, named baselines, saved PASS/FAIL/INCONCLUSIVE gates, and a CI CLI.
+- **Deployment controls:** personal-token identities, project roles, encrypted/rotatable credentials, audit events, retention policies, and an optional HTTPS gateway.
 
-## Try the workflow
+The seeded support demo remains explicitly synthetic. The [diverse review corpus](datasets/review/README.md) adds arithmetic, multi-hop routing, time calculations, policy boundaries, missing/conflicting evidence, instruction injection, structured outputs, unavailable tools, and entity disambiguation. Its references and controlled candidate responses are fixtures, not independent human labels or real-model quality evidence.
 
-1. **Datasets:** import [support.jsonl](datasets/examples/support.jsonl), or inspect the seeded dataset. Create a version to edit cases while preserving past runs.
-2. **Prompt library:** create a prompt containing `{input}` and optionally `{contexts}`.
-3. **Experiments:** create an evaluation using `mock-precise` and exact match. Enable content capture if you want to inspect and review outputs.
-4. Run the same snapshot with `mock-regressed`.
-5. **Comparisons:** select the precise run as baseline and regressed run as candidate. Compare results and check the quality gate.
-6. Open a regressed case to inspect its output, scores, attempts, and trace timeline. Add a human score if output was captured.
+## Evaluate your application
 
-The simulator uses reference answers as fixtures to test infrastructure. Its scores are not evidence of a real model's quality. Retrieval evaluation uses supplied document IDs; the platform does not implement a retriever or vector database.
+1. Start the `applications` profile and register `http://reference-app:8080/evaluate` under **Applications**.
+2. Import [corpus.jsonl](datasets/review/corpus.jsonl) or your own cases.
+3. Create a prompt with `{input}` and optional `{contexts}`.
+4. Create an evaluation, select the application target, and choose the metrics. Enable content capture for inspection/review.
+5. Inspect the returned retrieval/tool/generation spans and the run's usage ledger.
+6. Compare compatible runs and apply your release gate.
+
+Administrators must explicitly allow target hostnames through `EVALSCOPE_TARGET_HOSTS`. Targets and project credentials are scoped and immutable/rotatable respectively. See the [HTTP contract](docs/applications.md). The included reference app performs actual lexical retrieval and a filesystem metadata tool call, followed by an extractive generator; it makes no LLM calls and reports zero LLM tokens.
+
+Live direct generation, embeddings, and judging use the server's configured OpenAI-compatible URL. Supply `PROVIDER_API_KEY` or an encrypted project credential and enter supported model IDs. Generation, judge, embedding, and application prices are configured separately; blank prices remain unknown. [Chat request format](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) · [Embedding format](https://developers.openai.com/api/reference/resources/embeddings/methods/create).
+
+## Collect human review
+
+Create a **Human review** campaign from completed captured runs. In users mode, assign at least two actual reviewers the `reviewer` role and give each a personal token. The API withholds model identity, machine scores, and other labels from reviewers. Each person submits one immutable score/category/rationale per answer. The coordinator sees consensus coverage, reviewer disagreement, and actual judge/human pairs.
+
+A single developer identity cannot manufacture independent agreement. No independent human-reviewed corpus or real-model calibration result is claimed. Automated E2E labels are clearly named test fixtures. See [review methodology](docs/human-review.md).
+
+## Secure shared deployment
+
+```sh
+make secure-setup
+docker compose -p evalscope-secure -f docker-compose.yml -f docker-compose.secure.yml up --build -d
+```
+
+Open **https://localhost:8443**. Copy `.secrets/admin-token` into the dashboard's connection settings. The setup helper creates protected ignored secrets without printing them. Localhost uses Caddy's development CA; no host/browser trust settings are changed automatically. Verify the certificate and API authentication with:
+
+```sh
+.venv/bin/python scripts/verify_secure.py --project evalscope-secure
+```
+
+Settings manages personal identities, project memberships, credential rotation, and content/trace retention. Tokens are stored as hashes. Project secrets are encrypted with a master key supplied separately from the database. Secure mode publishes no backend HTTP port. Read the [security and operations guide](docs/security.md) before adapting this configuration for a real domain.
+
+The default local mode remains a development convenience, not multi-user authentication. Personal tokens do not constitute SSO/MFA or compliance certification. Provider storage, database backups, exports, and Jaeger retention need their own policies.
 
 ## CLI and CI
 
-With the API running locally:
+With a local API running:
 
 ```sh
 .venv/bin/python scripts/prepare_ci.py
@@ -77,51 +90,34 @@ With the API running locally:
 .venv/bin/evalscope run --config artifacts/regressed.yaml --baseline main --fail-on-regression --output artifacts/regression.json
 ```
 
-The last command deliberately exits **1**. Exit codes: **0** success, **1** regression, **2** execution failure, inconclusive gate, timeout, or configuration error. `--fail-on-regression` requires `--baseline`; both FAIL and INCONCLUSIVE prevent a release. A wait timeout leaves the server-side run active and reports its ID.
+The last command deliberately exits 1. Codes: **0** success, **1** regression, **2** incomplete execution, inconclusive gate, timeout, or invalid configuration. Gate mode requires a baseline. YAML can reference an existing experiment or frozen dataset/prompt IDs; inline datasets create new snapshots and cannot be compared against different versions. `EVALSCOPE_URL`, `EVALSCOPE_API_TOKEN`, and `EVALSCOPE_PROJECT_ID` configure the client. A client wait timeout does not cancel server-side work.
 
-The generated YAML files pin both runs to the same dataset version. Alternatively, provide an existing `experiment_id`, or use `name` and `config` with explicit dataset/prompt version IDs. Inline `dataset` and `prompt` definitions create new snapshots and are useful for one-off runs, but a newly created dataset version cannot be compared with a different snapshot.
+The [GitHub Actions workflow](.github/workflows/ci.yml) runs SQLite/PostgreSQL/Redis tests, builds the dashboard, tests the application and review workflow, verifies passing/failing gates, and runs the disposable multi-process fault lab. It uses no paid inference. It has been exercised locally but not pushed/run on GitHub during this task.
 
-Environment: `EVALSCOPE_URL`, `EVALSCOPE_API_TOKEN`, `EVALSCOPE_PROJECT_ID`. Keep tokens in environment variables. The [GitHub Actions workflow](.github/workflows/ci.yml) runs SQLite and PostgreSQL tests, builds the UI, tests a passing candidate and intentional regression, and runs the browser workflow. It does not use paid inference.
-
-## Live model providers
-
-Set `PROVIDER_API_KEY` and optionally `PROVIDER_BASE_URL` on the server, then restart the API and workers. In Compose, use `.env` or exported variables. Select **OpenAI-compatible · live** in the evaluation dialog and enter your model ID. Judge and embedding evaluators require their own model IDs. All calls target the administrator-configured server URL; users cannot submit arbitrary provider URLs or API keys through experiment configuration.
-
-The adapter uses chat completions, embeddings, and JSON mode for judging, with application-side verdict validation. Models must support those endpoints and the requested parameters; model IDs and token prices are deliberately user-configured. [Official chat completion reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create), [embedding reference](https://developers.openai.com/api/reference/resources/embeddings/methods/create). Network behavior is tested with mocked HTTP responses; live provider accuracy, billing, and availability have not been measured.
-
-## Observe an application
-
-```python
-from evalscope_sdk import Client
-
-observability = Client(service="support-api")
-with observability.trace() as trace:
-    with trace.span("retrieval", document_count=3):
-        pass  # call your retrieval pipeline
-    with trace.span("generation", model="your-model-id") as attributes:
-        pass  # call your model
-        attributes["input_tokens"] = 100
-        attributes["output_tokens"] = 30
-```
-
-Application traces appear alongside evaluation traces. The SDK accepts only allowlisted metadata; ingestion rejects prompt/response attributes. It exports synchronously after a request, with a five-second timeout and best-effort logging. It is intended for synchronous application code; an async application should export outside its event loop or send the JSON API payload with an async HTTP client.
-
-## Monitoring
+## Monitoring and application SDK
 
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 docker compose --profile observability up -d
 ```
 
-- Jaeger: http://localhost:16686
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000 — local development login `admin` / `evalscope-local`
-- API metrics: http://localhost:8000/metrics
+Jaeger: port 16686; Prometheus: 9090; Grafana: 3000 (`admin` / `evalscope-local` for development). On this implementation machine, Prometheus/Grafana use ports 9091/3001 because the defaults were occupied. Traces and both scrape targets were verified. Secure-mode scraping requires an authenticated TLS configuration; the development scraper does not bypass access controls.
 
-This optional profile includes an OpenTelemetry Collector, Jaeger, Prometheus, and a provisioned Grafana system dashboard. OTel exports are disabled by default when the profile is absent. The application retains a bounded metadata projection of evaluation spans in its database for inspection without a tracing backend. Metrics use normalized route templates and bounded labels; prompts, user IDs, and trace IDs are never Prometheus labels. When enabling API authentication, configure Prometheus with the same bearer token via a mounted secret.
+```python
+from evalscope_sdk import Client
 
-If a local port is occupied, set `EVALSCOPE_PORT`, `JAEGER_PORT`, `PROMETHEUS_PORT`, or `GRAFANA_PORT` before running Compose. For example, `PROMETHEUS_PORT=9091 GRAFANA_PORT=3001` moves the monitoring UIs without changing container ports. On the implementation machine, those alternate monitoring ports were used and verified; both Prometheus targets were up, Grafana was healthy, and Jaeger received `evalscope` traces.
+observe = Client(service="support-api")
+with observe.trace() as trace:
+    with trace.span("retrieval", document_count=3):
+        pass  # your retrieval
+    with trace.span("generation", model="your-model") as attributes:
+        pass  # your model call
+        attributes["input_tokens"] = 100
+        attributes["output_tokens"] = 30
+```
 
-## Verification
+The metadata-only SDK exports synchronously after a request, with a five-second timeout and best-effort handling. Async applications can send the ingestion JSON with an async client or export outside their event loop. Inputs/responses are rejected by metadata ingestion. Per-attempt worker traces remain independently addressable after retries; missing/expired projections are explicit.
+
+## Verification and measured evidence
 
 ```sh
 make test
@@ -131,41 +127,33 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Browser tests expect the built app at port 8000, or `EVALSCOPE_URL` pointing to another local instance. The test imports and versions a dataset, creates a prompt, runs baseline/candidate evaluations, opens trace evidence, and verifies that a regression fails the gate. A second test checks the mobile workflow and page overflow.
-
-Backend tests cover calculations, validation, immutability, lifecycle, retries, stale-owner fencing, duplicate delivery, cancellation, malformed providers/judge results, authentication, project filtering, request limits, trace ingestion, compatible comparisons, and inconclusive decisions. Run against an **isolated disposable database** with `TEST_DATABASE_URL=postgresql+psycopg://... make test`; tests drop and recreate their database tables.
-
-Local verification: **38 passed on SQLite** (Redis test skipped), **39 passed on PostgreSQL + Redis**, and **2 browser tests passed**. See the [verification record](docs/verification.md). Screenshots can be regenerated against the seeded running app with `node scripts/capture.mjs` after installing the Playwright browser.
-
-## Measured evidence
+Application browser tests require the reference app. In a non-Docker setup, run `uvicorn examples.rag_app:app --port 8080`, allow `127.0.0.1`, and set `EVALSCOPE_APPLICATION_URL=http://127.0.0.1:8080/evaluate` for the tests. The HTTPS browser test additionally uses `EVALSCOPE_SECURE_URL` and protected local test credentials.
 
 ```sh
+make reliability
 make benchmark
 .venv/bin/python -m benchmarks.recovery
 ```
 
-The checked-in [benchmark report](docs/benchmarks.md) includes raw measurements for **100, 1,000, and 5,000 cases** at concurrency 1, 3, and 5. Across those nine runs, **18,300/18,300 logical results persisted, with zero duplicate logical results**. A real worker SIGKILL/restart test completed all 20 cases in **31.35 seconds after termination**, using the default 30-second lease, with no duplicate logical results. These are local synthetic-provider measurements, not live-model or production performance guarantees.
+The disposable fault lab uses its own Compose project and volumes, never the application's database. It measured one/three/five worker processes and injected SIGKILL, PostgreSQL connection loss/restart, Redis outage, and in-flight cancellation. All eight scenarios preserved unique logical results. [Current raw results](benchmarks/results/distributed.json) · [Benchmark report](docs/benchmarks.md) · [Verification record](docs/verification.md).
 
-## Architecture and limits
+The original nine SQLite benchmarks persisted 18,300/18,300 results without duplicates. They describe the initial implementation before the expanded accounting/security work, not current throughput. Current PostgreSQL measurements and their five-second lab leases are reported separately from the original 30-second-lease recovery test.
+
+## Architecture and boundaries
 
 ```mermaid
 flowchart LR
-    UI[React dashboard] --> API[FastAPI / REST]
-    CLI[CLI / GitHub Actions] --> API
-    SDK[Application trace SDK] --> API
+    UI[React dashboard] --> API[FastAPI / identities / projects]
+    CLI[CLI and CI gates] --> API
     API --> DB[(PostgreSQL)]
-    Worker[Python async workers] <--> DB
-    Worker --> Redis[(Redis provider coordination)]
-    Worker --> Provider[Mock or live provider]
-    Worker --> OTel[OpenTelemetry Collector]
-    OTel --> Jaeger[Jaeger]
-    Prom[Prometheus] --> API
-    Prom --> Worker
-    Grafana[Grafana] --> Prom
+    Workers[Async workers] <--> DB
+    Workers --> Redis[(Provider coordination)]
+    Workers --> Target[RAG / agent application]
+    Workers --> Models[Generation / embeddings / judge]
+    Workers --> OTel[OpenTelemetry / Jaeger]
+    Review[Blinded human reviews] --> API
 ```
 
-The database is the durable work source. Redis coordinates live-provider concurrency and rate limits across processes; it does not duplicate the durable queue. PostgreSQL workers lock run rows and conditionally claim case rows. A lease token fences result persistence. [Architecture](docs/architecture.md) · [Database](docs/database.md) · [Evaluation methodology](docs/evaluation.md) · [Reliability](docs/reliability.md) · [Proposal review](docs/proposal-review.md).
+The database is the durable work source; Redis coordinates provider limits. External inference is at-least-once and may repeat after uncertainty. Known costs are estimates rather than invoices; application telemetry is self-reported. Dataset/prompt snapshots are retained separately from captured-output and trace policies. Statistical intervals assume independent cases and do not establish causal model superiority.
 
-This is a **local development prototype**, not a public multi-tenant SaaS. It has optional shared bearer-token authentication and project filtering, but no user identity system, per-user project membership, TLS termination, or secret vault. A shared token can access every project. Content capture is off by default; enabled captures and review notes remain until manually cleared. There is no automated retention policy. Captured judge explanations and human notes can contain sensitive text and should use synthetic data locally. Prompt-injection instructions are separated from judge data, but model compliance cannot be guaranteed.
-
-Costs and tokens include successful generation calls only; retry attempts, judge/embedding calls, and uncertain provider failures may incur additional untracked charges. Request recovery is at-least-once and can repeat external inference. Comparison intervals assume independent cases; duplicate or correlated cases invalidate that assumption. No independently reviewed 100-case corpus, judge calibration study, live-provider benchmark, multi-process throughput study, or production compliance claim is included.
+Paid provider calls, independent human research, public rollout, and organization-specific identity/certificate ownership remain external activities. Their supporting interfaces and controls are implemented; their outcomes are not invented.

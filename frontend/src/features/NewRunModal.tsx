@@ -1,3 +1,4 @@
+import type { Target, Credential } from "../pages/Applications";
 import React, { useState } from "react";
 import { Loader2, Play, SlidersHorizontal } from "lucide-react";
 import {
@@ -34,10 +35,18 @@ export function NewRunModal({
     [attempts, setAttempts] = useState(3),
     [timeout, setTimeoutValue] = useState(30),
     [threshold, setThreshold] = useState(0.8),
-    [inputCost, setInputCost] = useState(0),
-    [outputCost, setOutputCost] = useState(0),
+    [inputCost, setInputCost] = useState(""),
+    [outputCost, setOutputCost] = useState(""),
+    [targetId, setTargetId] = useState(""),
+    [credentialId, setCredentialId] = useState(""),
+    [judgeInput, setJudgeInput] = useState(""),
+    [judgeOutput, setJudgeOutput] = useState(""),
+    [embeddingCost, setEmbeddingCost] = useState(""),
+    [appPrices, setAppPrices] = useState("{}"),
     [error, setError] = useState<unknown>(null),
     [busy, setBusy] = useState(false);
+  const targets = useData<Target[]>("targets", "/targets");
+  const credentials = useData<Credential[]>("credentials", "/credentials");
   const versionId = version || datasets.data?.[0]?.versions[0]?.id || "",
     promptId = prompt || prompts.data?.[0]?.id || "";
   const submit = async (e: React.FormEvent) => {
@@ -52,6 +61,14 @@ export function NewRunModal({
           prompt_version_id: promptId,
           provider,
           model,
+          target_id: targetId || null,
+          provider_credential_id: credentialId || null,
+          application_prices: JSON.parse(appPrices),
+          judge_input_cost_per_million: judgeInput === "" ? null : +judgeInput,
+          judge_output_cost_per_million:
+            judgeOutput === "" ? null : +judgeOutput,
+          embedding_cost_per_million:
+            embeddingCost === "" ? null : +embeddingCost,
           evaluators,
           concurrency,
           capture_content: capture,
@@ -61,8 +78,8 @@ export function NewRunModal({
           max_attempts: attempts,
           timeout_seconds: timeout,
           pass_threshold: threshold,
-          input_cost_per_million: inputCost,
-          output_cost_per_million: outputCost,
+          input_cost_per_million: inputCost === "" ? null : +inputCost,
+          output_cost_per_million: outputCost === "" ? null : +outputCost,
         },
       });
       const run = await post<Run>("/runs", { experiment_id: experiment.id });
@@ -91,6 +108,27 @@ export function NewRunModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+        </label>
+        <label>
+          Evaluation application
+          <select
+            aria-label="Evaluation application"
+            value={targetId}
+            onChange={(e) => {
+              setTargetId(e.target.value);
+              setProvider(e.target.value ? "openai_compatible" : "mock");
+              setModel(
+                e.target.value ? "application-default" : "mock-balanced",
+              );
+            }}
+          >
+            <option value="">Direct model generation</option>
+            {targets.data?.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="form-row">
           <label>
@@ -304,7 +342,7 @@ export function NewRunModal({
                 min={0}
                 step="0.01"
                 value={inputCost}
-                onChange={(e) => setInputCost(+e.target.value)}
+                onChange={(e) => setInputCost(e.target.value)}
               />
             </label>
             <label>
@@ -314,13 +352,79 @@ export function NewRunModal({
                 min={0}
                 step="0.01"
                 value={outputCost}
-                onChange={(e) => setOutputCost(+e.target.value)}
+                onChange={(e) => setOutputCost(e.target.value)}
               />
             </label>
           </div>
           <p className="field-help">
-            Cost covers successful generation only; retries, judge, and
-            embeddings can incur additional charges.
+            Leave unknown rates blank. Zero is an explicitly free rate; the
+            ledger includes retries and all evaluation stages.
+          </p>
+          <div className="form-row">
+            <label>
+              Judge input / million ($)
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={judgeInput}
+                onChange={(e) => setJudgeInput(e.target.value)}
+              />
+            </label>
+            <label>
+              Judge output / million ($)
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={judgeOutput}
+                onChange={(e) => setJudgeOutput(e.target.value)}
+              />
+            </label>
+            <label>
+              Embedding / million ($)
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={embeddingCost}
+                onChange={(e) => setEmbeddingCost(e.target.value)}
+              />
+            </label>
+          </div>
+          <label>
+            Encrypted provider credential
+            <select
+              value={credentialId}
+              onChange={(e) => setCredentialId(e.target.value)}
+            >
+              <option value="">Server environment credential</option>
+              {credentials.data
+                ?.filter((c) => c.active)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · v{c.version}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {targetId && (
+            <label>
+              Application model prices · JSON
+              <textarea
+                rows={3}
+                className="code-input"
+                value={appPrices}
+                onChange={(e) => setAppPrices(e.target.value)}
+                placeholder={
+                  '{"your-model":{"input_cost_per_million":2,"output_cost_per_million":4}}'
+                }
+              />
+            </label>
+          )}
+          <p className="field-help">
+            All stages and retries are recorded. Missing prices or provider
+            usage remain explicitly unknown.
           </p>
         </details>
         <label className="capture-option">

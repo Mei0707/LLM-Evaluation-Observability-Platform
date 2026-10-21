@@ -1,0 +1,77 @@
+# Isolated fault laboratory. Never point it at the application's volumes.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: {POSTGRES_USER: evalscope, POSTGRES_PASSWORD: evalscope, POSTGRES_DB: evalscope_lab}
+    volumes: ["lab-postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evalscope"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  init:
+    image: evalscope:local
+    pull_policy: never
+    working_dir: /work
+    volumes: ["..:/work:ro"]
+    environment: &env
+      DATABASE_URL: postgresql+psycopg://evalscope:evalscope@postgres:5432/evalscope_lab
+      REDIS_URL: redis://redis:6379/0
+      EVALSCOPE_SEED_DEMO: "false"
+      EVALSCOPE_EMBEDDED_WORKER: "false"
+      EVALSCOPE_AUTH_MODE: local
+      EVALSCOPE_LEASE_SECONDS: "5"
+      EVALSCOPE_WORKER_SLOTS: "5"
+      PROVIDER_API_KEY: synthetic-lab-key-not-a-real-provider
+      PROVIDER_BASE_URL: http://provider:8080/v1
+      PROVIDER_CONCURRENCY: "4"
+      PROVIDER_REQUESTS_PER_SECOND: "50"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+      PYTHONDONTWRITEBYTECODE: "1"
+    command: ["python", "-m", "benchmarks.lab_scenarios", "init"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  api:
+    image: evalscope:local
+    pull_policy: never
+    working_dir: /work
+    volumes: ["..:/work:ro"]
+    environment: *env
+    command: ["uvicorn", "backend.app.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+  worker:
+    image: evalscope:local
+    pull_policy: never
+    working_dir: /work
+    volumes: ["..:/work:ro"]
+    environment:
+      <<: *env
+      EVALSCOPE_DB_APPLICATION: evalscope-worker
+    command: ["python", "-m", "backend.app.worker"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+  provider:
+    image: evalscope:local
+    pull_policy: never
+    working_dir: /work
+    volumes: ["..:/work:ro"]
+    command: ["uvicorn", "benchmarks.provider_app:app", "--host", "0.0.0.0", "--port", "8080"]
+  runner:
+    image: evalscope:local
+    pull_policy: never
+    working_dir: /work
+    volumes: ["..:/work:ro"]
+    environment: *env
+    command: ["python", "-m", "benchmarks.lab_scenarios", "init"]
+volumes:
+  lab-postgres:

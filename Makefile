@@ -1,5 +1,5 @@
 PYTHON := .venv/bin/python
-.PHONY: setup dev frontend worker test build up down benchmark
+.PHONY: setup dev frontend worker test build up down benchmark reliability secure-setup
 setup:
 	python3 -m venv .venv
 	$(PYTHON) -m pip install -r requirements.lock
@@ -21,3 +21,8 @@ down:
 	docker compose down
 benchmark:
 	$(PYTHON) -m benchmarks.run --sizes 100 1000 5000 --concurrency 1 3 5 --output benchmarks/results/latest.json
+reliability:
+	docker compose build migrate
+	$(PYTHON) -m benchmarks.distributed
+secure-setup:
+	$(PYTHON) scripts/security_setup.py

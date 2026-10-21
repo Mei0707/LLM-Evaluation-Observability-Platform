@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -16,7 +17,9 @@ def make_engine(url):
         connect_args=(
             {"check_same_thread": False, "timeout": 30}
             if url.startswith("sqlite")
-            else {}
+            else {
+                "application_name": os.getenv("EVALSCOPE_DB_APPLICATION", "evalscope")
+            }
         ),
     )
     if url.startswith("sqlite"):

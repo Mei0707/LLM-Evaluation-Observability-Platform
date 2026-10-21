@@ -27,10 +27,13 @@ class ProviderLimiter:
         self.lock = asyncio.Lock()
         self.last = 0.0
         self.redis = None
+        self.pending_releases = set()
         if config.redis_url:
             from redis.asyncio import Redis
 
-            self.redis = Redis.from_url(config.redis_url)
+            self.redis = Redis.from_url(
+                config.redis_url, socket_connect_timeout=1, socket_timeout=1
+            )
 
     @asynccontextmanager
     async def slot(self):
@@ -51,6 +54,10 @@ class ProviderLimiter:
                 """
                 try:
                     while not acquired:
+                        if self.pending_releases:
+                            pending = set(self.pending_releases)
+                            await self.redis.zrem("evalscope:provider:slots", *pending)
+                            self.pending_releases.difference_update(pending)
                         acquired = bool(
                             await self.redis.eval(
                                 script,
@@ -83,7 +90,7 @@ class ProviderLimiter:
                     try:
                         await self.redis.zrem("evalscope:provider:slots", token)
                     except Exception:
-                        pass  # lease has a bounded expiry
+                        self.pending_releases.add(token)
 
     async def close(self):
         if self.redis:
@@ -100,42 +107,117 @@ class Provider:
         await self.client.aclose()
         await self.limiter.close()
 
-    async def request(self, path, body):
-        if not self.settings.provider_key:
+    async def request(self, path, body, *, scope=None, config=None):
+        from . import usage
+        from .security import decrypt_credential
+
+        key = self.settings.provider_key
+        job = usage.current_job.get()
+        if job and job["config"].get("provider_credential_id"):
+            try:
+                key = decrypt_credential(
+                    job["config"]["provider_credential_id"], job["project_id"]
+                )
+            except ValueError:
+                raise ProviderError("credential_unavailable") from None
+        if not key:
             raise ProviderError("credentials_missing")
         async with self.limiter.slot():
+            identity = usage.begin(scope, body["model"], config) if scope else None
             try:
                 response = await self.client.post(
                     self.settings.provider_url + path,
                     json=body,
-                    headers={"Authorization": f"Bearer {self.settings.provider_key}"},
+                    headers={"Authorization": f"Bearer {key}"},
                 )
                 if response.status_code >= 400:
                     code = response.status_code
-                    raise ProviderError(
-                        (
-                            "rate_limit"
-                            if code == 429
-                            else (
-                                "authentication"
-                                if code in (401, 403)
-                                else (
-                                    "provider_server"
-                                    if code >= 500
-                                    else "invalid_request"
-                                )
-                            )
-                        ),
-                        code == 429 or code >= 500,
+                    category = (
+                        "rate_limit"
+                        if code == 429
+                        else (
+                            "authentication"
+                            if code in (401, 403)
+                            else "provider_server" if code >= 500 else "invalid_request"
+                        )
                     )
-                return response.json()
-            except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                raise ProviderError("network_timeout", True) from exc
-            except (ValueError, KeyError, TypeError) as exc:
-                raise ProviderError("malformed_response") from exc
+                    usage.finish(
+                        identity,
+                        "REJECTED" if code < 500 else "UNCERTAIN",
+                        error=category,
+                        billable=code >= 500,
+                    )
+                    raise ProviderError(category, code == 429 or code >= 500)
+                payload = response.json()
+                reported = payload.get("usage", {})
+                incoming = reported.get(
+                    "prompt_tokens",
+                    reported.get("total_tokens") if scope == "embedding" else None,
+                )
+                outgoing = (
+                    0 if scope == "embedding" else reported.get("completion_tokens")
+                )
+                valid = all(
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                    for value in (incoming, outgoing)
+                )
+                usage.finish(
+                    identity,
+                    "REPORTED" if valid else "UNREPORTED",
+                    incoming if valid else None,
+                    outgoing if valid else None,
+                    request_id=response.headers.get("x-request-id"),
+                )
+                return payload
+            except (httpx.TimeoutException, httpx.NetworkError):
+                usage.finish(identity, "UNCERTAIN", error="network_timeout")
+                raise ProviderError("network_timeout", True) from None
+            except (ValueError, KeyError, TypeError, AttributeError):
+                usage.finish(identity, "UNCERTAIN", error="malformed_response")
+                raise ProviderError("malformed_response") from None
+            except BaseException:
+                usage.finish(identity, "UNCERTAIN", error="request_interrupted")
+                raise
 
     async def generate(self, config, case, prompt, attempt):
         if config["provider"] == "mock":
+            return await self.mock_generate(config, case, prompt, attempt)
+        response = await self.request(
+            "/chat/completions",
+            {
+                "model": config["model"],
+                "temperature": config["temperature"],
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            scope="generation",
+            config=config,
+        )
+        try:
+            output = response["choices"][0]["message"]["content"]
+            if not isinstance(output, str) or len(output) > 100_000:
+                raise ValueError("Invalid content")
+            reported = response.get("usage", {})
+            values = (
+                reported.get("prompt_tokens", 0),
+                reported.get("completion_tokens", 0),
+            )
+            if any(
+                isinstance(v, bool) or not isinstance(v, int) or v < 0 for v in values
+            ):
+                raise ValueError("Invalid usage")
+            return output, *values
+        except (KeyError, TypeError, ValueError, IndexError, AttributeError):
+            raise ProviderError("malformed_response") from None
+
+    async def mock_generate(self, config, case, prompt, attempt):
+        from . import usage
+
+        identity = usage.begin(
+            "generation", config["model"], config, source="simulated", rates=(0, 0)
+        )
+        try:
             digest = int(hashlib.sha256(case["case_id"].encode()).hexdigest()[:8], 16)
             await asyncio.sleep(
                 config["mock_latency_ms"] / 1000 * (0.6 + digest % 80 / 100)
@@ -159,35 +241,24 @@ class Provider:
                     else "I do not have enough information to answer this question."
                 )
             )
-            return output, max(1, len(prompt) // 4), max(1, len(output) // 4)
-        response = await self.request(
-            "/chat/completions",
-            {
-                "model": config["model"],
-                "temperature": config["temperature"],
-                "messages": [{"role": "user", "content": prompt}],
-            },
-        )
-        try:
-            output = response["choices"][0]["message"]["content"]
-            if not isinstance(output, str) or len(output) > 100_000:
-                raise ValueError("Invalid content")
-            usage = response.get("usage", {})
-            input_tokens = usage.get("prompt_tokens", 0)
-            output_tokens = usage.get("completion_tokens", 0)
-            if any(
-                isinstance(value, bool) or not isinstance(value, int) or value < 0
-                for value in (input_tokens, output_tokens)
-            ):
-                raise ValueError("Invalid usage")
-            return output, input_tokens, output_tokens
-        except (KeyError, TypeError, ValueError, IndexError) as exc:
-            raise ProviderError("malformed_response") from exc
+            tokens = max(1, len(prompt) // 4), max(1, len(output) // 4)
+            usage.finish(identity, "REPORTED", *tokens)
+            return output, *tokens
+        except BaseException as exc:
+            usage.finish(
+                identity,
+                "REJECTED",
+                error=getattr(exc, "category", "interrupted"),
+                billable=False,
+            )
+            raise
 
     async def embeddings(self, config, output, reference):
         response = await self.request(
             "/embeddings",
             {"model": config["embedding_model"], "input": [output, reference]},
+            scope="embedding",
+            config=config,
         )
         try:
             data = sorted(response["data"], key=lambda item: item["index"])
@@ -215,6 +286,8 @@ class Provider:
                     {"role": "user", "content": json.dumps(data)},
                 ],
             },
+            scope="judge",
+            config=config,
         )
         try:
             verdict = json.loads(response["choices"][0]["message"]["content"])
