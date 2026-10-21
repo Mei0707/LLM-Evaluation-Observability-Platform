@@ -1,0 +1,12 @@
+{
+  "os": "macOS-26.5.2-arm64-arm-64bit",
+  "database": "isolated SQLite WAL",
+  "failure": "SIGKILL during active inference",
+  "lease_seconds": 30,
+  "cases": 20,
+  "persisted": 20,
+  "completed": 20,
+  "recovered_abandoned_attempts": 3,
+  "duplicate_logical_results": 0,
+  "seconds_from_kill_to_complete": 31.35401170887053
+}

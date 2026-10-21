@@ -1,0 +1,72 @@
+name: Validate EvalScope
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_USER: evalscope, POSTGRES_PASSWORD: evalscope, POSTGRES_DB: evalscope_test}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U evalscope"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -r requirements.lock && pip install --no-deps -e .
+      - name: SQLite tests
+        run: pytest -q
+      - name: PostgreSQL tests
+        run: pytest -q
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://evalscope:evalscope@localhost:5432/evalscope_test
+          TEST_REDIS_URL: redis://localhost:6379/15
+      - name: Migration round trip
+        run: alembic upgrade head && alembic downgrade base && alembic upgrade head && alembic check
+        env:
+          DATABASE_URL: sqlite:///./artifacts-migration.db
+  dashboard-and-quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: pip install -r requirements.lock && pip install --no-deps -e .
+      - run: npm ci && npm run build && npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Start API and worker
+        run: |
+          EVALSCOPE_SEED_DEMO=false uvicorn backend.app.api:app --host 127.0.0.1 --port 8000 > /tmp/evalscope-api.log 2>&1 &
+          python scripts/wait_for_api.py
+      - name: Configure deterministic CI evaluations
+        run: python scripts/prepare_ci.py
+      - name: Establish baseline and verify passing candidate
+        run: |
+          evalscope run --config artifacts/baseline.yaml --set-baseline main --output artifacts/baseline.json
+          evalscope run --config artifacts/candidate.yaml --baseline main --fail-on-regression --output artifacts/candidate.json
+      - name: Verify a regression fails the CLI gate
+        run: |
+          python -c "import subprocess; r=subprocess.run(['evalscope','run','--config','artifacts/regressed.yaml','--baseline','main','--fail-on-regression','--output','artifacts/regression.json']); assert r.returncode == 1, r.returncode"
+      - name: Browser workflow
+        run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-evidence
+          path: |
+            artifacts/
+            frontend/playwright-report/
+            frontend/test-results/

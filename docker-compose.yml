@@ -1,0 +1,94 @@
+name: evalscope
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: evalscope
+      POSTGRES_PASSWORD: evalscope
+      POSTGRES_DB: evalscope
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evalscope"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    image: evalscope:local
+    command: ["alembic", "upgrade", "head"]
+    environment: &app-env
+      DATABASE_URL: postgresql+psycopg://evalscope:evalscope@postgres:5432/evalscope
+      REDIS_URL: redis://redis:6379/0
+      EVALSCOPE_EMBEDDED_WORKER: "false"
+      EVALSCOPE_SEED_DEMO: ${EVALSCOPE_SEED_DEMO:-true}
+      EVALSCOPE_API_TOKEN: ${EVALSCOPE_API_TOKEN:-}
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:-}
+      PROVIDER_BASE_URL: ${PROVIDER_BASE_URL:-https://api.openai.com/v1}
+      PROVIDER_CONCURRENCY: ${PROVIDER_CONCURRENCY:-5}
+      PROVIDER_REQUESTS_PER_SECOND: ${PROVIDER_REQUESTS_PER_SECOND:-5}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    image: evalscope:local
+    pull_policy: never
+    environment: *app-env
+    ports: ["127.0.0.1:${EVALSCOPE_PORT:-8000}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  worker:
+    image: evalscope:local
+    pull_policy: never
+    command: ["python", "-m", "backend.app.worker"]
+    environment:
+      <<: *app-env
+      PROMETHEUS_WORKER_PORT: "9001"
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    profiles: [observability]
+    environment: {COLLECTOR_OTLP_ENABLED: "true"}
+    ports: ["127.0.0.1:${JAEGER_PORT:-16686}:16686"]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    profiles: [observability]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./deploy/otel/collector.yaml:/etc/otelcol/config.yaml:ro"]
+    depends_on: [jaeger]
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes: ["./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "prometheus-data:/prometheus"]
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"]
+  grafana:
+    image: grafana/grafana:11.6.0
+    profiles: [observability]
+    environment: {GF_SECURITY_ADMIN_USER: admin, GF_SECURITY_ADMIN_PASSWORD: evalscope-local}
+    volumes: ["./deploy/grafana/provisioning:/etc/grafana/provisioning:ro", "./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro", "grafana-data:/var/lib/grafana"]
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3000}:3000"]
+volumes:
+  postgres-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
